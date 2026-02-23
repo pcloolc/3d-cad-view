@@ -1,0 +1,3142 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CAD Viewer Pro</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+JP:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg: #f0f2f5;
+    --panel: #ffffff;
+    --panel2: #f8f9fb;
+    --border: #e0e4ea;
+    --accent: #2563eb;
+    --accent2: #f59e0b;
+    --warn: #f59e0b;
+    --danger: #ef4444;
+    --ok: #10b981;
+    --text: #1a2233;
+    --text-dim: #9ca3af;
+    --grid: #e5e9f0;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans JP', sans-serif;
+    font-weight: 400;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    padding: 0 16px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 10;
+  }
+  .logo {
+    font-family: 'IBM Plex Sans JP', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: .5px;
+    white-space: nowrap;
+  }
+  .logo span { color: var(--accent); }
+  .header-sep { width: 1px; height: 24px; background: var(--border); }
+  .header-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'IBM Plex Sans JP', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    padding: 5px 14px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all .15s;
+  }
+  .header-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .header-btn.primary { border-color: var(--accent); color: var(--accent); background: rgba(0,212,255,.07); }
+  .header-btn.primary:hover { background: rgba(0,212,255,.18); }
+  .status-bar { margin-left: auto; display: flex; align-items: center; gap: 12px; font-size: 11px; font-family: 'IBM Plex Mono', monospace; color: var(--text-dim); }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+  #file-input { display: none; }
+  #csv-input { display: none; }
+
+  /* ── MAIN LAYOUT ── */
+  .workspace {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── LEFT PANEL ── */
+  .left-panel {
+    width: 300px;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* 独立セクション（構造ツリー・属性情報） */
+  .lp-section {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 36px;
+    flex: 1 1 50%;
+  }
+  .lp-section.collapsed { flex: 0 0 36px; }
+  .lp-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .5px;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+    flex-shrink: 0;
+    background: var(--panel2);
+    transition: background .15s;
+  }
+  .lp-section-header:hover { background: #f0f4f8; }
+  .lp-section-title { font-family: "IBM Plex Sans JP", sans-serif; }
+  .lp-section-arrow {
+    font-size: 10px;
+    color: var(--text-dim);
+    transition: transform .2s;
+  }
+  .lp-section.collapsed .lp-section-arrow { transform: rotate(-90deg); }
+  .lp-section-body {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .lp-section.collapsed .lp-section-body { display: none; }
+
+  /* 上下リサイズハンドル */
+  .lp-vresize {
+    height: 5px;
+    background: transparent;
+    cursor: row-resize;
+    flex-shrink: 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    transition: background .15s;
+  }
+  .lp-vresize:hover { background: rgba(0,212,255,0.25); }
+
+  /* ピン表示バー */
+  .lp-pin-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px 5px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel2);
+    flex-shrink: 0;
+  }
+  .lp-pin-label { font-size: 11px; font-weight: 600; color: var(--text-dim); letter-spacing: .3px; }
+  .panel-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .5px;
+    color: var(--text-dim);
+    padding: 10px 14px 8px;
+    border-bottom: 1px solid var(--border);
+    font-family: 'IBM Plex Sans JP', sans-serif;
+    text-transform: none;
+  }
+  .model-list { flex: 1; overflow-y: auto; padding: 8px; }
+  .left-sub-panel { overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+  #left-tree-panel { flex: 1 1 40%; min-height: 60px; }
+  #left-ann-panel  { flex: 1 1 60%; border-top: 2px solid var(--border); min-height: 80px; }
+  .model-item {
+    padding: 8px 10px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    transition: all .1s;
+    margin-bottom: 2px;
+  }
+  .model-item:hover { border-color: var(--border); background: var(--panel2); }
+  .model-item.active { border-color: var(--accent); background: rgba(0,212,255,.07); color: var(--accent); }
+  .model-icon { font-size: 16px; }
+  .no-model { padding: 24px 16px; text-align: center; color: var(--text-dim); font-size: 12px; line-height: 1.8; }
+
+  /* ── 3D CANVAS AREA ── */
+  .canvas-area {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: #f5f7fa;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  #three-canvas { width: 100% !important; height: 100% !important; display: block; }
+
+  .drop-zone {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    pointer-events: none;
+  }
+  .drop-zone.hidden { display: none; }
+  .drop-icon { font-size: 48px; opacity: .3; }
+  .drop-text { font-size: 14px; color: var(--text-dim); letter-spacing: 1px; text-align: center; line-height: 1.8; }
+  .drop-formats { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--accent); opacity: .8; }
+
+  /* drag-over highlight */
+  .canvas-area.drag-over { outline: 2px dashed var(--accent); outline-offset: -8px; }
+  .canvas-area.drag-over .drop-zone { opacity: 1; }
+
+  /* view controls overlay */
+  .view-controls {
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
+    display: flex;
+    gap: 6px;
+    z-index: 5;
+  }
+  .view-btn {
+    background: rgba(255,255,255,.92);
+    border: 1px solid var(--border);
+    color: #374151;
+    font-family: 'IBM Plex Sans JP', sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 5px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all .15s;
+    backdrop-filter: blur(4px);
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  }
+  .view-btn:hover { border-color: var(--accent); color: var(--accent); background: #eff6ff; }
+
+  /* pin labels */
+  .pin-label {
+    position: absolute;
+    pointer-events: none;
+    transform: translate(-50%, -100%);
+    margin-top: -8px;
+  }
+  .pin-dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    border: 2px solid white;
+    margin: 0 auto 4px;
+    cursor: pointer;
+    pointer-events: all;
+  }
+  .pin-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    background: rgba(255,255,255,.95);
+    border: 1px solid;
+    padding: 2px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+    cursor: pointer;
+    pointer-events: all;
+    box-shadow: 0 1px 4px rgba(0,0,0,.15);
+  }
+
+  /* ── RIGHT PANEL ── */
+  .right-panel {
+    width: 300px;
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  .tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab {
+    flex: 1;
+    padding: 10px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+    cursor: pointer;
+    color: var(--text-dim);
+    border-bottom: 2px solid transparent;
+    transition: all .15s;
+  }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-content { display: none; flex: 1; overflow-y: auto; flex-direction: column; }
+  .tab-content.active { display: flex; }
+
+  /* annotations list */
+  .ann-list { flex: 1; overflow-y: auto; padding: 8px; min-height: 0; }
+  .ann-item {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    transition: all .15s;
+    position: relative;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  }
+  .ann-item:hover { border-color: var(--accent); background: #eff6ff; box-shadow: 0 2px 6px rgba(37,99,235,.1); }
+  .ann-item.selected { border-color: var(--accent); background: #eff6ff; }
+  .ann-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .ann-type-badge {
+    font-family: 'IBM Plex Sans JP', sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 3px;
+    letter-spacing: .3px;
+  }
+  .badge-fault { color: #dc2626; background: #fee2e2; }
+  .badge-stress { color: #d97706; background: #fef3c7; }
+  .badge-note { color: #059669; background: #d1fae5; }
+  .ann-title { font-size: 13px; font-weight: 600; flex: 1; color: var(--text); }
+  .ann-del { background: none; border: none; color: #d1d5db; cursor: pointer; font-size: 14px; padding: 0 4px; border-radius: 3px; }
+  .ann-del:hover { color: var(--danger); background: #fee2e2; }
+  .ann-value { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #d97706; font-weight: 500; }
+  .ann-desc { font-size: 12px; color: #6b7280; margin-top: 4px; line-height: 1.5; }
+
+  /* add annotation form */
+  .add-ann-form {
+    border-top: 1px solid var(--border);
+    padding: 14px;
+    background: #f8f9fb;
+  }
+  .form-title { font-size: 11px; font-weight: 600; letter-spacing: .3px; color: var(--text-dim); margin-bottom: 10px; font-family: 'IBM Plex Sans JP', sans-serif; text-transform: none; }
+  .form-row { margin-bottom: 8px; }
+  .form-label { font-size: 11px; font-weight: 500; color: #374151; letter-spacing: 0; display: block; margin-bottom: 4px; }
+  .form-input, .form-select, .form-textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'IBM Plex Sans JP', sans-serif;
+    font-size: 13px;
+    padding: 6px 10px;
+    outline: none;
+    transition: border-color .15s;
+  }
+  .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--accent); }
+  .form-select option { background: var(--panel); }
+  .form-textarea { resize: vertical; min-height: 60px; }
+  .btn-add {
+    width: 100%;
+    background: rgba(0,212,255,.1);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: 'IBM Plex Sans JP', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 8px;
+    cursor: pointer;
+    transition: all .15s;
+    margin-top: 4px;
+  }
+  .btn-add:hover { background: rgba(0,212,255,.2); }
+
+  /* model info tab */
+  .info-section { padding: 12px; border-bottom: 1px solid var(--border); }
+  .info-label { font-size: 11px; font-weight: 500; color: var(--text-dim); letter-spacing: 0; margin-bottom: 4px; font-family: 'IBM Plex Sans JP', sans-serif; }
+  .info-value { font-size: 14px; font-weight: 600; }
+  .info-value.mono { font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--accent); }
+
+  /* pin add mode hint */
+  .pin-mode-hint {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #eff6ff;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: 'IBM Plex Sans JP', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 8px 20px;
+    border-radius: 6px;
+    z-index: 10;
+    display: none;
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(37,99,235,.15);
+  }
+  .pin-mode-hint.active { display: block; }
+
+  /* tooltip popup */
+  .tooltip-popup {
+    position: absolute;
+    background: rgba(255,255,255,.98);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+    min-width: 200px;
+    max-width: 260px;
+    z-index: 20;
+    pointer-events: none;
+    display: none;
+    box-shadow: 0 4px 16px rgba(0,0,0,.12);
+  }
+  .tooltip-popup.visible { display: block; }
+  .tooltip-popup .t-type { font-size: 9px; letter-spacing: 1px; text-transform: uppercase; font-family: 'Share Tech Mono', monospace; margin-bottom: 4px; }
+  .tooltip-popup .t-title { font-size: 14px; font-weight: 700; margin-bottom: 4px; color: #111827; }
+  .tooltip-popup .t-value { font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #d97706; margin-bottom: 6px; }
+  .tooltip-popup .t-desc { font-size: 12px; color: #6b7280; line-height: 1.5; }
+
+
+  /* ── ツリービュー ── */
+  .tree-node { user-select: none; }
+  .tree-row {
+    display: flex; align-items: center; gap: 4px;
+    padding: 4px 8px; cursor: pointer;
+    font-size: 12px; border: 1px solid transparent;
+    transition: all .1s; white-space: nowrap; overflow: hidden;
+  }
+  .tree-row:hover { background: #f3f4f6; border-color: var(--border); border-radius: 3px; }
+  .tree-row.selected { border-color: var(--accent); background: #eff6ff; color: var(--accent); border-left: 2px solid var(--accent); border-radius: 0 3px 3px 0; }
+  .tree-row.assy { color: #111827; font-weight: 600; }
+  .tree-row.part { color: #6b7280; }
+  .tree-toggle { width: 14px; flex-shrink: 0; text-align: center; font-size: 10px; color: #9ca3af; }
+  .tree-icon { flex-shrink: 0; font-size: 13px; }
+  .tree-label { overflow: hidden; text-overflow: ellipsis; }
+  .tree-children { overflow: hidden; transition: max-height .2s ease; }
+  .tree-eye { margin-left: auto; flex-shrink: 0; font-size: 11px; color: #d1d5db; cursor: pointer; padding: 0 2px; }
+  .tree-eye:hover { color: var(--accent); }
+
+
+  /* ── ツールバー（断面/測定/分解） ── */
+  .tool-bar {
+    position: absolute;
+    top: 12px; right: 12px;
+    display: flex; flex-direction: column; gap: 6px;
+    z-index: 8;
+  }
+  .tool-btn {
+    background: rgba(255,255,255,.94);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #374151;
+    cursor: pointer;
+    transition: all .15s;
+    white-space: nowrap;
+    font-family: 'IBM Plex Sans JP', sans-serif;
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    display: flex; align-items: center; gap: 5px;
+  }
+  .tool-btn:hover { border-color: var(--accent); color: var(--accent); background: #eff6ff; }
+  .tool-btn.active { border-color: var(--accent); color: #fff; background: var(--accent); }
+
+  /* ── スケールモーダル ── */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.4);
+    z-index: 100;
+    display: none; align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    background: #fff;
+    border-radius: 10px;
+    padding: 24px;
+    width: 340px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.18);
+    font-family: 'IBM Plex Sans JP', sans-serif;
+  }
+  .modal-title { font-size: 15px; font-weight: 700; color: #111; margin-bottom: 6px; }
+  .modal-desc  { font-size: 12px; color: #6b7280; margin-bottom: 16px; line-height: 1.6; }
+  .modal-row   { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .modal-row label { font-size: 12px; font-weight: 500; color: #374151; width: 80px; flex-shrink: 0; }
+  .modal-row input, .modal-row select {
+    flex: 1; border: 1px solid #d1d5db; border-radius: 5px;
+    padding: 6px 10px; font-size: 13px; outline: none;
+    font-family: 'IBM Plex Mono', monospace;
+    transition: border-color .15s;
+  }
+  .modal-row input:focus, .modal-row select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+  .modal-footer { display: flex; gap: 8px; margin-top: 16px; }
+  .modal-btn { flex: 1; padding: 8px; border-radius: 5px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; font-family: 'IBM Plex Sans JP', sans-serif; }
+  .modal-btn.primary { background: var(--accent); color: #fff; }
+  .modal-btn.primary:hover { background: #1d4ed8; }
+  .modal-btn.secondary { background: #f3f4f6; color: #374151; }
+  .modal-btn.secondary:hover { background: #e5e7eb; }
+
+  /* ── 断面スライダーパネル ── */
+  .clip-panel {
+    position: absolute;
+    top: 12px; left: 260px;
+    background: rgba(255,255,255,.96);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    z-index: 8;
+    display: none;
+    min-width: 220px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.1);
+    font-family: 'IBM Plex Sans JP', sans-serif;
+  }
+  .clip-panel.open { display: block; }
+  .clip-panel-title { font-size: 11px; font-weight: 700; color: #6b7280; letter-spacing: .5px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+  .clip-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .clip-label { font-size: 11px; font-weight: 600; width: 20px; color: #374151; }
+  .clip-slider { flex: 1; accent-color: var(--accent); cursor: pointer; }
+  .clip-val { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #9ca3af; width: 36px; text-align: right; }
+  .clip-close { background: none; border: none; font-size: 14px; color: #9ca3af; cursor: pointer; line-height: 1; }
+  .clip-close:hover { color: #374151; }
+
+  /* ── 測定結果表示 ── */
+  .measure-hud {
+    position: absolute;
+    bottom: 60px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255,255,255,.96);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: #111;
+    z-index: 8;
+    display: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,.1);
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .measure-hud.visible { display: block; }
+  .measure-hud .measure-label { font-size: 10px; font-weight: 400; color: #9ca3af; display: block; margin-bottom: 2px; font-family: 'IBM Plex Sans JP', sans-serif; }
+
+  /* ── 分解スライダー ── */
+  .explode-bar {
+    position: absolute;
+    bottom: 60px; right: 12px;
+    background: rgba(255,255,255,.96);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    z-index: 8;
+    display: none;
+    width: 200px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.1);
+    font-family: 'IBM Plex Sans JP', sans-serif;
+  }
+  .explode-bar.open { display: block; }
+  .explode-title { font-size: 11px; font-weight: 700; color: #6b7280; margin-bottom: 8px; display: flex; justify-content: space-between; }
+  .explode-slider { width: 100%; accent-color: var(--accent); cursor: pointer; }
+
+
+  /* ── サイドバー折りたたみ + リサイズ ── */
+  .left-panel, .right-panel {
+    transition: width 0.22s cubic-bezier(.4,0,.2,1);
+    position: relative;
+    flex-shrink: 0;
+  }
+  .left-panel.resizing, .right-panel.resizing { transition: none; }
+  .left-panel.collapsed  { width: 28px !important; min-width: 28px; }
+  .right-panel.collapsed { width: 28px !important; min-width: 28px; }
+
+  .panel-inner { overflow: hidden; flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .left-panel.collapsed  .panel-inner { opacity: 0; pointer-events: none; }
+  .right-panel.collapsed .panel-inner { opacity: 0; pointer-events: none; }
+
+  /* リサイズハンドル */
+  .panel-resize-handle {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 5px;
+    cursor: col-resize;
+    z-index: 20;
+    background: transparent;
+    transition: background .15s;
+  }
+  .panel-resize-handle:hover, .panel-resize-handle.dragging { background: var(--accent); opacity: 0.5; }
+  .left-panel  .panel-resize-handle { right: 0; }
+  .right-panel .panel-resize-handle { left: 27px; }
+  .left-panel.collapsed  .panel-resize-handle { display: none; }
+  .right-panel.collapsed .panel-resize-handle { display: none; }
+
+  /* 折りたたみタブ（縦書きラベル） */
+  .panel-collapse-tab {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 10;
+    gap: 6px;
+    transition: background .15s;
+    /* 上下ボーダーなし、左右のみ */
+    border-top: none !important;
+    border-bottom: none !important;
+  }
+  .panel-collapse-tab:hover { background: var(--panel2); }
+
+  .left-panel  .panel-collapse-tab { right: 0; border-left: none; border-right: none; border-right: 1px solid var(--border); }
+  .right-panel .panel-collapse-tab { left: 0; border-left: 1px solid var(--border); border-right: none; }
+
+  .left-panel.collapsed  .panel-collapse-tab { right: auto; left: 0; border-left: none; border-right: 1px solid var(--border); }
+  .right-panel.collapsed .panel-collapse-tab { left: auto; right: 0; border-right: none; border-left: 1px solid var(--border); }
+
+  .panel-tab-label {
+    writing-mode: vertical-rl;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    font-family: 'IBM Plex Sans JP', sans-serif;
+    white-space: nowrap;
+  }
+  .panel-tab-arrow {
+    font-size: 10px;
+    color: var(--text-dim);
+    transition: transform .22s;
+  }
+  .left-panel.collapsed  .panel-tab-arrow { transform: rotate(180deg); }
+  .right-panel.collapsed .panel-tab-arrow { transform: rotate(180deg); }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+
+  /* ── 属性情報カテゴリタブ ── */
+  .ann-cat-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel2);
+    padding: 0 8px;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+  .ann-cat-tab {
+    flex: 1;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 8px 4px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all .15s;
+    font-family: 'IBM Plex Sans JP', sans-serif;
+  }
+  .ann-cat-tab:hover { color: var(--text); }
+  .ann-cat-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .ann-cat-tab[data-cat="fault"].active  { color: #dc2626; border-bottom-color: #dc2626; }
+  .ann-cat-tab[data-cat="stress"].active { color: #d97706; border-bottom-color: #d97706; }
+  .ann-cat-tab[data-cat="note"].active   { color: #059669; border-bottom-color: #059669; }
+
+  /* ── アコーディオンアイテム ── */
+  /* 属性ON/OFFスイッチ */
+  .ann-toggle {
+    position: relative;
+    width: 30px;
+    height: 16px;
+    flex-shrink: 0;
+    margin-left: 4px;
+  }
+  .ann-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .ann-toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: #d1d5db;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: background .2s;
+  }
+  .ann-toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 12px; height: 12px;
+    left: 2px; top: 2px;
+    background: white;
+    border-radius: 50%;
+    transition: transform .2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,.2);
+  }
+  .ann-toggle input:checked + .ann-toggle-slider { background: var(--accent); }
+  .ann-toggle input:checked + .ann-toggle-slider::before { transform: translateX(14px); }
+
+  /* ピン右クリックメニュー */
+  #pin-context-menu .pcm-item:hover { background: #f9fafb; }
+
+  .acc-item.ann-off { opacity: 0.45; }
+  .acc-item.ann-off .acc-header { background: repeating-linear-gradient(
+    -45deg, transparent, transparent 4px, rgba(0,0,0,.03) 4px, rgba(0,0,0,.03) 8px
+  ); }
+
+  .acc-item {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 6px;
+    background: #fff;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+    transition: box-shadow .15s;
+  }
+  .acc-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+  .acc-item.hidden { display: none; }
+
+  .acc-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    cursor: pointer;
+    user-select: none;
+    transition: background .1s;
+  }
+  .acc-header:hover { background: #f9fafb; }
+  .acc-arrow {
+    font-size: 11px;
+    color: var(--text-dim);
+    transition: transform .2s;
+    flex-shrink: 0;
+    transform: rotate(0deg);
+  }
+  .acc-item.open .acc-arrow { transform: rotate(180deg); }
+
+  .acc-body {
+    display: none;
+    border-top: 1px solid var(--border);
+    padding: 10px 12px;
+    background: #fafafa;
+    font-size: 12px;
+    color: #374151;
+    line-height: 1.6;
+    animation: accOpen .15s ease;
+  }
+  .acc-item.open .acc-body { display: block; }
+  @keyframes accOpen { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
+
+  .acc-body .acc-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: #d97706;
+    margin-bottom: 6px;
+  }
+  .acc-body .acc-desc { color: #6b7280; margin-bottom: 6px; }
+  .acc-body .acc-pos {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #9ca3af;
+    background: #f3f4f6;
+    padding: 3px 7px;
+    border-radius: 3px;
+    display: inline-block;
+  }
+  .acc-body .acc-actions {
+    display: flex; gap: 6px; margin-top: 8px;
+  }
+  .acc-btn {
+    flex: 1;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 5px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: #374151;
+    cursor: pointer;
+    transition: all .1s;
+    font-family: 'IBM Plex Sans JP', sans-serif;
+  }
+  .acc-btn:hover { border-color: var(--accent); color: var(--accent); background: #eff6ff; }
+  .acc-btn.danger:hover { border-color: #ef4444; color: #ef4444; background: #fef2f2; }
+
+  /* ── フォームトグルボタン ── */
+  .form-toggle-btn {
+    width: 100%;
+    background: none;
+    border: none;
+    border-top: 1px solid var(--border);
+    padding: 11px 14px;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    cursor: pointer;
+    font-family: 'IBM Plex Sans JP', sans-serif;
+    transition: background .1s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .form-toggle-btn:hover { background: #eff6ff; }
+  #form-toggle-icon { font-size: 14px; font-weight: 700; }
+  .form-body { padding: 0 14px 14px; }
+
+  .empty-ann { padding: 24px 16px; text-align: center; color: #9ca3af; font-size: 12px; line-height: 1.8; }
+  .empty-ann .e-icon { font-size: 28px; margin-bottom: 8px; opacity: .4; }
+
+  /* loading */
+  .loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(240,242,245,.85);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 30;
+    gap: 16px;
+    display: none;
+  }
+  .loading-overlay.active { display: flex; }
+  .loading-bar { width: 200px; height: 2px; background: var(--border); position: relative; overflow: hidden; }
+  .loading-bar::after {
+    content: '';
+    position: absolute;
+    left: -100%;
+    width: 60%;
+    height: 100%;
+    background: var(--accent);
+    animation: loading 1s infinite linear;
+  }
+  @keyframes loading { to { left: 200%; } }
+  .loading-text { font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--accent); letter-spacing: 1px; font-weight: 500; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">CAD<span>/</span>Viewer</div>
+  <div class="header-sep"></div>
+  <button class="header-btn primary" onclick="document.getElementById('file-input').click()">▲ モデル読込</button>
+  <button class="header-btn" onclick="document.getElementById('csv-input').click()">CSV 読込</button>
+
+  <div class="status-bar">
+    <div class="status-dot"></div>
+    <span id="status-text">準備完了</span>
+  </div>
+  <input type="file" id="file-input" accept=".glb,.gltf,.obj,.stl" multiple onchange="loadModelFiles(this.files)">
+  <input type="file" id="csv-input" accept=".csv" onchange="loadCSV(this.files[0])">
+</header>
+
+<div class="workspace">
+
+  <!-- LEFT: 構造ツリー + 属性情報（独立アコーディオン） -->
+  <div class="left-panel" id="left-panel">
+
+    <!-- ── 構造ツリーセクション ── -->
+    <div class="lp-section" id="lp-tree-section">
+      <div class="lp-section-header" onclick="toggleLpSection('tree')">
+        <span class="lp-section-title">構造ツリー</span>
+        <span class="lp-section-arrow" id="lp-tree-arrow">▼</span>
+      </div>
+      <div class="lp-section-body" id="lp-tree-body">
+        <div class="model-list" id="model-list">
+          <div class="no-model">モデルファイルを<br>読み込んでください<br><br><span style="font-family:monospace;font-size:11px;color:#1e2d3d">GLB · GLTF · OBJ · STL</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 上下リサイズハンドル -->
+    <div id="left-vertical-resize" class="lp-vresize"></div>
+
+    <!-- ── 属性情報セクション ── -->
+    <div class="lp-section" id="lp-ann-section">
+      <div class="lp-section-header" onclick="toggleLpSection('ann')">
+        <span class="lp-section-title">属性情報</span>
+        <span class="lp-section-arrow" id="lp-ann-arrow">▼</span>
+      </div>
+      <div class="lp-section-body" id="lp-ann-body">
+
+        <!-- 全ON/OFFバー -->
+        <div class="lp-pin-bar">
+          <span class="lp-pin-label">ピン表示</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:10px;color:var(--text-dim)" id="all-toggle-label">すべてON</span>
+            <label class="ann-toggle" title="すべてのピンをON/OFF">
+              <input type="checkbox" id="all-ann-toggle" checked onchange="toggleAllAnnotations(this.checked)">
+              <span class="ann-toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- カテゴリタブ -->
+        <div class="ann-cat-tabs">
+          <button class="ann-cat-tab active" data-cat="all"    onclick="switchAnnCat('all',this)">すべて</button>
+          <button class="ann-cat-tab"        data-cat="fault"  onclick="switchAnnCat('fault',this)">不具合</button>
+          <button class="ann-cat-tab"        data-cat="stress" onclick="switchAnnCat('stress',this)">応力値</button>
+          <button class="ann-cat-tab"        data-cat="note"   onclick="switchAnnCat('note',this)">メモ</button>
+        </div>
+
+        <!-- 属性リスト -->
+        <div class="ann-list" id="ann-list">
+          <div class="empty-ann"><div class="e-icon">📋</div>属性情報がありません<br>フォームから追加してください</div>
+        </div>
+
+        <!-- 追加フォーム -->
+        <div class="add-ann-form">
+          <button class="form-toggle-btn" onclick="toggleAddForm()" id="form-toggle-btn">
+            <span id="form-toggle-icon">＋</span> 属性情報を追加
+          </button>
+          <div class="form-body" id="form-body" style="display:none">
+            <div class="form-row" style="margin-top:10px">
+              <label class="form-label">種別</label>
+              <select class="form-select" id="ann-type">
+                <option value="fault">不具合</option>
+                <option value="stress">応力値</option>
+                <option value="note">メモ</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label class="form-label">タイトル</label>
+              <input class="form-input" id="ann-title" placeholder="例: クラック発生箇所">
+            </div>
+            <div class="form-row">
+              <label class="form-label">数値（任意）</label>
+              <input class="form-input" id="ann-value" placeholder="例: 245.3 MPa">
+            </div>
+            <div class="form-row">
+              <label class="form-label">説明</label>
+              <textarea class="form-textarea" id="ann-desc" placeholder="詳細を入力..."></textarea>
+            </div>
+            <div class="form-row">
+              <label class="form-label">日付（任意）</label>
+              <input class="form-input" type="date" id="ann-date">
+            </div>
+            <div class="form-row">
+              <label class="form-label">URL（任意）</label>
+              <input class="form-input" type="url" id="ann-url" placeholder="https://...">
+            </div>
+            <button class="btn-add" onclick="addAnnotation()">＋ 追加</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="panel-resize-handle" id="left-resize-handle"></div>
+  </div>
+
+  <!-- CENTER: 3D canvas -->
+  <div class="canvas-area" id="canvas-area">
+    <div class="drop-zone" id="drop-zone">
+      <div class="drop-icon">⬡</div>
+      <div class="drop-text">ここにファイルをドロップ<br>またはヘッダーの「モデル読込」をクリック</div>
+      <div class="drop-formats">GLB · GLTF · OBJ · STL</div>
+    </div>
+
+    <div id="three-container" style="width:100%;height:100%;"></div>
+
+    <div class="pin-mode-hint" id="pin-mode-hint">📍 ピン配置モード  —  モデル上をクリックして位置を指定</div>
+
+    <!-- ビューキューブ（左上） -->
+    <div id="view-cube-wrap" style="
+      position:absolute;top:16px;left:16px;z-index:10;
+      display:flex;flex-direction:column;align-items:center;gap:4px;
+    ">
+      <canvas id="view-cube-canvas" width="110" height="110"
+        style="width:110px;height:110px;cursor:pointer;display:block;background:transparent;"
+        onclick="onViewCubeClick(event)"
+        onmousemove="onViewCubeHover(event)"
+        onmouseleave="onViewCubeClear()">
+      </canvas>
+      <div id="view-cube-label" style="
+        font-size:10px;color:#6b7280;height:14px;text-align:center;
+        font-family:'IBM Plex Sans JP',sans-serif;pointer-events:none;
+      "></div>
+    </div>
+
+    <!-- 下部コントロール（リセット/ワイヤー/グリッド） -->
+    <div class="view-controls">
+      <button class="view-btn" onclick="resetCamera()">⟳ リセット</button>
+      <button class="view-btn" onclick="toggleWireframe()">ワイヤー</button>
+      <button class="view-btn" id="grid-btn" onclick="toggleGrid()" style="color:var(--accent);border-color:var(--accent);background:#eff6ff">グリッド</button>
+    </div>
+
+    <div class="loading-overlay" id="loading-overlay">
+      <div class="loading-text">LOADING MODEL...</div>
+      <div class="loading-bar"></div>
+    </div>
+
+    <div class="tooltip-popup" id="tooltip-popup"></div>
+    <div id="pin-overlay"></div>
+    <!-- 範囲選択オーバーレイ -->
+    <div id="drag-select-box" style="
+      display:none;position:absolute;pointer-events:none;
+      border:2px dashed #ff6600;background:rgba(255,102,0,0.08);
+      z-index:6;box-sizing:border-box;
+    "></div>
+
+    <!-- ピン右クリックメニュー -->
+    <div id="pin-context-menu" style="
+      display:none;position:fixed;z-index:9999;
+      background:#fff;border:1px solid #e5e7eb;border-radius:8px;
+      box-shadow:0 8px 24px rgba(0,0,0,.15);min-width:140px;padding:4px 0;
+      font-family:'IBM Plex Sans JP',sans-serif;font-size:13px;
+    ">
+      <div id="pcm-title" style="padding:8px 14px 6px;font-weight:600;color:#374151;font-size:12px;border-bottom:1px solid #f3f4f6"></div>
+      <div class="pcm-item" onclick="pcmReposition()" style="padding:8px 14px;cursor:pointer;display:flex;align-items:center;gap:8px;color:#d97706">
+        📍 <span>位置修正</span>
+      </div>
+      <div style="height:1px;background:#f3f4f6;margin:2px 0"></div>
+      <div class="pcm-item" onclick="pcmDelete()" style="padding:8px 14px;cursor:pointer;display:flex;align-items:center;gap:8px;color:#ef4444">
+        🗑 <span>削除</span>
+      </div>
+    </div>
+
+    <!-- ツールバー -->
+    <div class="tool-bar">
+      <button class="tool-btn" id="btn-clip"    onclick="toggleClipPanel()">✂️ 断面表示</button>
+      <button class="tool-btn" id="btn-measure" onclick="toggleMeasureMode()">📏 寸法測定</button>
+      <button class="tool-btn" id="btn-explode" onclick="toggleExplodePanel()">💥 分解表示</button>
+      <button class="tool-btn" id="btn-move"    onclick="toggleMovePanel()">🔧 部品移動</button>
+    </div>
+
+    <!-- 断面スライダーパネル -->
+    <div class="clip-panel" id="clip-panel">
+      <div class="clip-panel-title">
+        断面表示
+        <button class="clip-close" onclick="closeClipPanel()">✕</button>
+      </div>
+      <div class="clip-row">
+        <span class="clip-label">X</span>
+        <input type="range" class="clip-slider" id="clip-x" min="-1" max="1" step="0.01" value="1" oninput="updateClip()">
+        <span class="clip-val" id="clip-x-val">1.00</span>
+        <input type="checkbox" id="clip-x-en" onchange="updateClip()" title="有効">
+      </div>
+      <div class="clip-row">
+        <span class="clip-label">Y</span>
+        <input type="range" class="clip-slider" id="clip-y" min="-1" max="1" step="0.01" value="1" oninput="updateClip()">
+        <span class="clip-val" id="clip-y-val">1.00</span>
+        <input type="checkbox" id="clip-y-en" onchange="updateClip()" title="有効">
+      </div>
+      <div class="clip-row">
+        <span class="clip-label">Z</span>
+        <input type="range" class="clip-slider" id="clip-z" min="-1" max="1" step="0.01" value="1" oninput="updateClip()">
+        <span class="clip-val" id="clip-z-val">1.00</span>
+        <input type="checkbox" id="clip-z-en" onchange="updateClip()" title="有効">
+      </div>
+    </div>
+
+    <!-- 測定HUD -->
+    <div class="measure-hud" id="measure-hud">
+      <span class="measure-label">2点間距離 (mm)</span>
+      <span id="measure-result">—</span>
+    </div>
+
+    <!-- 分解スライダー -->
+    <div class="explode-bar" id="explode-bar">
+      <div class="explode-title">
+        <span>💥 分解表示</span>
+        <button class="clip-close" onclick="closeExplodePanel()">✕</button>
+      </div>
+      <div style="font-size:11px;color:#6b7280;margin-bottom:8px">スライダーで部品を展開</div>
+      <input type="range" class="explode-slider" id="explode-slider"
+             min="0" max="1" step="0.01" value="0" oninput="updateExplode(this.value)">
+    </div>
+
+    <!-- 部品移動UI -->
+    <div class="explode-bar" id="move-bar" style="width:260px;display:none">
+      <div class="explode-title">
+        <span>🔧 部品移動</span>
+        <button class="clip-close" onclick="closeMovePanel()">✕</button>
+      </div>
+      <div id="explode-selected" style="font-size:11px;font-weight:600;color:#2563eb;margin-bottom:6px;min-height:14px;line-height:1.4">
+        部品をクリックして選択<br><span style="font-weight:400;color:#9ca3af">Shift+クリックで複数選択</span>
+      </div>
+      <!-- 選択リスト -->
+      <div id="move-selected-list" style="max-height:60px;overflow-y:auto;margin-bottom:8px;font-size:10px;color:#6b7280"></div>
+
+      <!-- 数値入力欄 -->
+      <div style="margin-bottom:8px">
+        <div style="font-size:10px;font-weight:600;color:#6b7280;margin-bottom:4px;letter-spacing:.3px">絶対位置を入力して移動</div>
+        <div style="display:grid;grid-template-columns:16px 1fr auto;gap:4px;align-items:center;row-gap:5px">
+          <span style="font-size:11px;font-weight:700;color:#ef4444">X</span>
+          <input type="number" id="move-x-val" step="0.1" placeholder="0.0"
+            style="border:1px solid #d1d5db;border-radius:4px;padding:4px 6px;font-size:12px;font-family:monospace;outline:none;width:100%">
+          <button class="acc-btn" style="padding:4px 8px;font-size:11px" onclick="moveToAbsolute('x')">→</button>
+
+          <span style="font-size:11px;font-weight:700;color:#22c55e">Y</span>
+          <input type="number" id="move-y-val" step="0.1" placeholder="0.0"
+            style="border:1px solid #d1d5db;border-radius:4px;padding:4px 6px;font-size:12px;font-family:monospace;outline:none;width:100%">
+          <button class="acc-btn" style="padding:4px 8px;font-size:11px" onclick="moveToAbsolute('y')">→</button>
+
+          <span style="font-size:11px;font-weight:700;color:#3b82f6">Z</span>
+          <input type="number" id="move-z-val" step="0.1" placeholder="0.0"
+            style="border:1px solid #d1d5db;border-radius:4px;padding:4px 6px;font-size:12px;font-family:monospace;outline:none;width:100%">
+          <button class="acc-btn" style="padding:4px 8px;font-size:11px" onclick="moveToAbsolute('z')">→</button>
+        </div>
+        <button class="acc-btn" style="width:100%;margin-top:4px;font-size:11px" onclick="moveToAbsoluteAll()">XYZ まとめて適用</button>
+      </div>
+
+      <!-- 矢印ボタン -->
+      <div style="font-size:10px;font-weight:600;color:#6b7280;margin-bottom:4px;letter-spacing:.3px">矢印で相対移動</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px">
+        <button class="acc-btn" onclick="moveSelected(-1,0,0)">← X</button>
+        <button class="acc-btn" onclick="moveSelected(1,0,0)">X →</button>
+        <button class="acc-btn" onclick="moveSelected(0,1,0)">Y ↑</button>
+        <button class="acc-btn" onclick="moveSelected(0,-1,0)">↓ Y</button>
+        <button class="acc-btn" onclick="moveSelected(0,0,-1)">← Z</button>
+        <button class="acc-btn" onclick="moveSelected(0,0,1)">Z →</button>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+        <span style="font-size:11px;color:#6b7280;white-space:nowrap">移動量</span>
+        <input type="range" id="move-step" min="0.05" max="1.0" step="0.05" value="0.2"
+               style="flex:1;accent-color:var(--accent)">
+        <span id="move-step-val" style="font-size:11px;font-family:monospace;width:32px">0.20</span>
+      </div>
+      <button class="acc-btn" style="width:100%;border-color:#ef4444;color:#ef4444" onclick="resetMove()">↺ リセット</button>
+    </div>
+
+  </div><!-- /canvas-area -->
+
+  <!-- right-panel を左サイドバーに統合済み -->
+
+</div><!-- /workspace -->
+
+<!-- Three.js importmap (ES Module方式 - 確実に動作) -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader }    from 'three/addons/loaders/GLTFLoader.js';
+import { OBJLoader }     from 'three/addons/loaders/OBJLoader.js';
+import { STLLoader }     from 'three/addons/loaders/STLLoader.js';
+
+// ─── App State ─────────────────────────────────────────────────────────────
+let scene, camera, renderer, controls;
+let models = {};
+let activeModel = null;
+let annotations = [];
+let pinMode = false;
+let pendingAnnotation = null;
+let repositionTargetId = null;
+let wireframeMode = false;
+let idCounter = 0;
+let selectedOutlines  = []; // 選択ハイライト用アウトライン
+let selectedMeshUUIDs = new Set(); // 複数選択されたメッシュUUID
+
+// loaderインスタンスをモジュールスコープで保持
+let gltfLoader, objLoader, stlLoader;
+
+// グローバル関数をwindowに公開（HTML側のonclick等から呼ぶため）
+window.loadModelFiles  = f => { for (const file of f) loadFile(file); };
+
+// ── サイドバー折りたたみ ─────────────────────────────────────────
+function toggleLeftPanel() { /* 折りたたみ機能は廃止 */ }
+
+// 左パネル内の独立セクション折りたたみ
+function toggleLpSection(name) {
+  const section = document.getElementById('lp-' + name + '-section');
+  const arrow   = document.getElementById('lp-' + name + '-arrow');
+  if (!section) return;
+  const isCollapsed = section.classList.toggle('collapsed');
+  // 折りたたんだセクションはflexを0固定、開いているセクションは1に戻す
+  const vresize = document.getElementById('left-vertical-resize');
+  if (isCollapsed) {
+    section.style.flex = '0 0 36px';
+    if (vresize) vresize.style.display = 'none';
+  } else {
+    section.style.flex = '1 1 50%';
+    // 両方開いている場合だけリサイズハンドル表示
+    const treeCollapsed = document.getElementById('lp-tree-section').classList.contains('collapsed');
+    const annCollapsed  = document.getElementById('lp-ann-section').classList.contains('collapsed');
+    if (vresize) vresize.style.display = (treeCollapsed || annCollapsed) ? 'none' : '';
+  }
+}
+window.toggleLpSection = toggleLpSection;
+function toggleRightPanel() { /* right-panel を左パネルに統合したため不使用 */ }
+window.toggleLeftPanel  = toggleLeftPanel;
+window.toggleRightPanel = toggleRightPanel;
+
+// ── サイドバーリサイズ ─────────────────────────────────────────
+(function() {
+  function initResize(handleId, panelId, side) {
+    const handle = document.getElementById(handleId);
+    const panel  = document.getElementById(panelId);
+    if (!handle || !panel) return;
+    let startX, startW;
+    handle.addEventListener('mousedown', e => {
+      e.preventDefault();
+      startX = e.clientX;
+      startW = panel.offsetWidth;
+      handle.classList.add('dragging');
+      panel.classList.add('resizing');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      function onMove(e) {
+        const dx = side === 'left' ? e.clientX - startX : startX - e.clientX;
+        const newW = Math.max(140, Math.min(480, startW + dx));
+        panel.style.width = newW + 'px';
+        if (renderer) onResize();
+      }
+      function onUp() {
+        handle.classList.remove('dragging');
+        panel.classList.remove('resizing');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      }
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    });
+  }
+  // DOMReady後に初期化
+  window.addEventListener('DOMContentLoaded', () => {
+    initResize('left-resize-handle',  'left-panel',  'left');
+  });
+  // モジュールなので即時でも試みる
+  setTimeout(() => {
+    initResize('left-resize-handle',  'left-panel',  'left');
+
+    // 垂直リサイズ（構造ツリー↔属性情報）
+    const vHandle  = document.getElementById('left-vertical-resize');
+    const treeSecP = document.getElementById('lp-tree-section');
+    const annSecP  = document.getElementById('lp-ann-section');
+    if (vHandle && treeSecP && annSecP) {
+      let startY, startTreeH, startAnnH;
+      vHandle.addEventListener('mousedown', ev => {
+        ev.preventDefault();
+        startY     = ev.clientY;
+        startTreeH = treeSecP.offsetHeight;
+        startAnnH  = annSecP.offsetHeight;
+        document.body.style.cursor = 'row-resize';
+        document.body.style.userSelect = 'none';
+        function onMove(ev) {
+          const dy = ev.clientY - startY;
+          const newTree = Math.max(60, startTreeH + dy);
+          const newAnn  = Math.max(60, startAnnH  - dy);
+          treeSecP.style.flex = `0 0 ${newTree}px`;
+          annSecP.style.flex  = `0 0 ${newAnn}px`;
+        }
+        function onUp() {
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+          window.removeEventListener('mousemove', onMove);
+          window.removeEventListener('mouseup', onUp);
+        }
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+      });
+    }
+  }, 100);
+})();
+
+// renderMoveAxes: 断面軸を流用するため不要
+function renderMoveAxes() {}
+
+window.loadFile        = loadFile;
+window.togglePinMode   = togglePinMode;
+window.exportAnnotations = exportAnnotations;
+window.loadCSV         = loadCSV;
+window.resetCamera     = resetCamera;
+window.setView         = setView;
+window.toggleWireframe = toggleWireframe;
+window.toggleGrid      = toggleGrid;
+
+
+// ════════════════════════════════════════════════════════════════
+// ② 断面表示（クリッピングプレーン）
+// ════════════════════════════════════════════════════════════════
+const clipPlanes = {
+  x: new THREE.Plane(new THREE.Vector3(-1, 0, 0), 1),
+  y: new THREE.Plane(new THREE.Vector3(0, -1, 0), 1),
+  z: new THREE.Plane(new THREE.Vector3(0, 0, -1), 1),
+};
+let clipActive = false;
+
+// AxesHelper: 左下に専用サブレンダラーで描画
+let axesHelper    = null;
+let axesRenderer  = null;
+let axesScene     = null;
+let axesCamera    = null;
+
+function initAxesOverlay() {
+  // 2D Canvas で軸を直接描画するオーバーレイ
+  const size = 120;
+  const canvas = document.createElement('canvas');
+  canvas.id = 'axes-canvas';
+  canvas.width  = size * window.devicePixelRatio;
+  canvas.height = size * window.devicePixelRatio;
+  canvas.style.cssText = [
+    'position:absolute', 'bottom:52px', 'left:16px',
+    'width:' + size + 'px', 'height:' + size + 'px',
+    'pointer-events:none', 'z-index:9', 'display:none',
+    'border-radius:8px',
+    'background:rgba(255,255,255,0)',
+    'backdrop-filter:none',
+    'box-shadow:none',
+  ].join(';');
+  document.getElementById('canvas-area').appendChild(canvas);
+  axesRenderer = { canvas }; // dummy
+}
+
+function showAxesHelper() {
+  // axes-canvas は非表示（XYZ軸表示廃止）
+  // 断面スライダーの範囲をモデルのBBに合わせる
+  if (activeModel && models[activeModel]) {
+    const box = new THREE.Box3().setFromObject(models[activeModel]);
+    const min = box.min, max = box.max;
+    ['x','y','z'].forEach(ax => {
+      const sl = document.getElementById('clip-' + ax);
+      const mn = ax === 'x' ? min.x : ax === 'y' ? min.y : min.z;
+      const mx = ax === 'x' ? max.x : ax === 'y' ? max.y : max.z;
+      sl.min = mn.toFixed(3); sl.max = mx.toFixed(3);
+      sl.step = ((mx - mn) / 200).toFixed(4);
+      sl.value = mx.toFixed(3);
+      document.getElementById('clip-' + ax + '-val').textContent = parseFloat(mx).toFixed(2);
+    });
+  }
+}
+
+function hideAxesHelper() {
+  // axes-canvas は常に非表示
+}
+
+function renderAxesOverlay() {
+  const canvas = document.getElementById('axes-canvas');
+  if (!canvas || canvas.style.display === 'none' || !camera) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.width, H = canvas.height;
+  const cx = W / 2, cy = H / 2;  // 正確に中央
+  const len = Math.min(W, H) * 0.28; // ラベルが収まるよう短めに
+
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  // カメラの回転行列から3D→2D投影
+  const axes = [
+    { dir: new THREE.Vector3(1,0,0), color: '#ef4444', label: 'X' },
+    { dir: new THREE.Vector3(0,1,0), color: '#22c55e', label: 'Y' },
+    { dir: new THREE.Vector3(0,0,1), color: '#3b82f6', label: 'Z' },
+  ];
+
+  // カメラ視点での軸方向を計算
+  const projected = axes.map(ax => {
+    const v = ax.dir.clone().applyQuaternion(camera.quaternion.clone().invert());
+    // x: 左右, y: 上下（画面Y軸は反転）
+    return { sx: cx + v.x * len, sy: cy - v.y * len, color: ax.color, label: ax.label, z: v.z };
+  });
+
+  // 奥から手前の順で描画（z降順）
+  projected.sort((a, b) => a.z - b.z);
+
+  projected.forEach(p => {
+    // 軸線
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(p.sx, p.sy);
+    ctx.strokeStyle = p.color;
+    ctx.lineWidth = 2.5 * dpr;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // 先端の円
+    ctx.beginPath();
+    ctx.arc(p.sx, p.sy, 4 * dpr, 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+
+    // ラベルテキスト（軸先端の1.35倍の位置）
+    const lx = cx + (p.sx - cx) * 1.50;
+    const ly = cy + (p.sy - cy) * 1.50;
+    ctx.font = `bold ${11 * dpr}px IBM Plex Mono, monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = p.color;
+    ctx.fillText(p.label, lx, ly);
+  });
+
+  // 原点ドット
+  ctx.beginPath();
+  ctx.arc(cx, cy, 3 * dpr, 0, Math.PI * 2);
+  ctx.fillStyle = '#374151';
+  ctx.fill();
+}
+
+function toggleClipPanel() {
+  const panel = document.getElementById('clip-panel');
+  const btn   = document.getElementById('btn-clip');
+  const isOpen = panel.classList.contains('open');
+  panel.classList.toggle('open');
+  btn.classList.toggle('active', !isOpen);
+  if (isOpen) {
+    hideAxesHelper();
+    clearClipPlaneMeshes();
+    renderer.clippingPlanes = [];
+    renderer.localClippingEnabled = false;
+    scene.traverse(c => { if (c.isMesh && c.material) {
+      const clear = m => { m.clippingPlanes = []; m.needsUpdate = true; };
+      if (Array.isArray(c.material)) c.material.forEach(clear); else clear(c.material);
+    }});
+  } else {
+    showAxesHelper();
+  }
+}
+function closeClipPanel() {
+  document.getElementById('clip-panel').classList.remove('open');
+  document.getElementById('btn-clip').classList.remove('active');
+  hideAxesHelper();
+  clearClipPlaneMeshes();
+  renderer.clippingPlanes = [];
+  renderer.localClippingEnabled = false;
+  scene.traverse(c => { if (c.isMesh && c.material) {
+    const clear = m => { m.clippingPlanes = []; m.needsUpdate = true; };
+    if (Array.isArray(c.material)) c.material.forEach(clear); else clear(c.material);
+  }});
+}
+
+// 断面可視化メッシュ管理
+const clipPlaneMeshes = { x: null, y: null, z: null };
+
+function updateClipPlaneMesh(ax, val, en, modelBox) {
+  if (clipPlaneMeshes[ax]) { scene.remove(clipPlaneMeshes[ax]); clipPlaneMeshes[ax] = null; }
+  if (!en || !modelBox) return;
+
+  const size = modelBox.getSize(new THREE.Vector3());
+  const center = modelBox.getCenter(new THREE.Vector3());
+  const s = Math.max(size.x, size.y, size.z) * 1.3;
+
+  // Plane(-1,0,0, val) → 法線が-X方向, 定数val → x=val の平面（正確な位置）
+  // EdgesGeometry で外枠のみ表示
+  const geo = new THREE.PlaneGeometry(s, s);
+  const edges = new THREE.EdgesGeometry(geo);
+  const color = ax === 'x' ? 0xef4444 : ax === 'y' ? 0x22c55e : 0x3b82f6;
+
+  // 外枠ライン
+  const lineMat = new THREE.LineBasicMaterial({ color, linewidth: 2, transparent: true, opacity: 0.9, depthWrite: false });
+  const lineObj = new THREE.LineSegments(edges, lineMat);
+
+  // 薄い塗り（fill）
+  const fillMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.07, side: THREE.DoubleSide, depthWrite: false });
+  const fillMesh = new THREE.Mesh(geo.clone(), fillMat);
+
+  const group = new THREE.Group();
+  group.name = '__clip_plane__';
+  group.add(fillMesh);
+  group.add(lineObj);
+
+  // 平面の配置: Plane(normal, d) の式 dot(normal, p) + d = 0
+  // X: normal=(-1,0,0), d=val → -x+val=0 → x=val → position.x = val
+  // Y: normal=(0,-1,0), d=val → -y+val=0 → y=val
+  // Z: normal=(0,0,-1), d=val → -z+val=0 → z=val
+  if (ax === 'x') {
+    group.rotation.y = Math.PI / 2;
+    group.position.set(val, center.y, center.z);
+  } else if (ax === 'y') {
+    group.rotation.x = Math.PI / 2;
+    group.position.set(center.x, val, center.z);
+  } else {
+    group.position.set(center.x, center.y, val);
+  }
+  scene.add(group);
+  clipPlaneMeshes[ax] = group;
+}
+
+function clearClipPlaneMeshes() {
+  ['x','y','z'].forEach(ax => {
+    if (clipPlaneMeshes[ax]) { scene.remove(clipPlaneMeshes[ax]); clipPlaneMeshes[ax] = null; }
+  });
+}
+
+function updateClip() {
+  const activePlanes = [];
+  let modelBox = null;
+  if (activeModel && models[activeModel]) {
+    modelBox = new THREE.Box3().setFromObject(models[activeModel]);
+  }
+
+  ['x','y','z'].forEach(ax => {
+    const val = parseFloat(document.getElementById('clip-' + ax).value);
+    const en  = document.getElementById('clip-' + ax + '-en').checked;
+    document.getElementById('clip-' + ax + '-val').textContent = val.toFixed(2);
+    const dir = ax === 'x' ? new THREE.Vector3(-1,0,0)
+              : ax === 'y' ? new THREE.Vector3(0,-1,0)
+              :               new THREE.Vector3(0,0,-1);
+    clipPlanes[ax] = new THREE.Plane(dir, val);
+    if (en) activePlanes.push(clipPlanes[ax]);
+
+    // 断面可視化
+    updateClipPlaneMesh(ax, val, en, modelBox);
+  });
+
+  renderer.localClippingEnabled = activePlanes.length > 0;
+  scene.traverse(c => {
+    if (c.isMesh && !c.name.startsWith('__')) {
+      const apply = m => { m.clippingPlanes = activePlanes; m.clipShadows = false; m.needsUpdate = true; };
+      if (Array.isArray(c.material)) c.material.forEach(apply); else apply(c.material);
+    }
+  });
+}
+window.toggleClipPanel = toggleClipPanel;
+window.closeClipPanel  = closeClipPanel;
+window.updateClip      = updateClip;
+
+// ════════════════════════════════════════════════════════════════
+// ③ 寸法測定（2点クリック）
+// ════════════════════════════════════════════════════════════════
+let measureMode   = false;
+let measurePoints = [];   // THREE.Vector3[]
+let measureMarkers = [];  // scene内のマーカーMesh
+let measureLine   = null; // 2点を結ぶLine
+
+function toggleMeasureMode() {
+  measureMode = !measureMode;
+  const btn = document.getElementById('btn-measure');
+  btn.classList.toggle('active', measureMode);
+  if (measureMode) {
+    clearMeasure();
+    setStatus('📏 測定モード: モデル上の2点をクリックしてください');
+    document.getElementById('measure-hud').classList.add('visible');
+    document.getElementById('measure-result').textContent = '点1をクリック';
+  } else {
+    clearMeasure();
+    document.getElementById('measure-hud').classList.remove('visible');
+    setStatus('測定モード終了');
+  }
+}
+
+function clearMeasure() {
+  measureMarkers.forEach(m => scene.remove(m));
+  measureMarkers = [];
+  measurePoints  = [];
+  if (measureLine) { scene.remove(measureLine); measureLine = null; }
+}
+
+function addMeasurePoint(point) {
+  // 既存の点に近い場所をクリックしたら削除
+  for (let i = measureMarkers.length - 1; i >= 0; i--) {
+    const sp = worldToScreen(measureMarkers[i].position);
+    if (!sp) continue;
+    const rect = renderer.domElement.getBoundingClientRect();
+    // ワールド座標間の距離で判定（0.15以内なら同じ点とみなす）
+    if (measurePoints[i] && point.distanceTo(measurePoints[i]) < 0.15) {
+      scene.remove(measureMarkers[i]);
+      measureMarkers.splice(i, 1);
+      measurePoints.splice(i, 1);
+      if (measureLine) { scene.remove(measureLine); measureLine = null; }
+      document.getElementById('measure-result').textContent =
+        measurePoints.length === 0 ? '点1をクリック' : '点2をクリック';
+      setStatus('📏 点を削除しました');
+      return;
+    }
+  }
+
+  // 2点揃っている場合はリセットして新規測定
+  if (measurePoints.length >= 2) {
+    clearMeasure();
+    document.getElementById('measure-result').textContent = '点1をクリック';
+  }
+
+  // マーカー球
+  const geo = new THREE.SphereGeometry(0.05, 12, 12);
+  const mat = new THREE.MeshBasicMaterial({ color: measurePoints.length === 0 ? 0x2563eb : 0xef4444 });
+  const sphere = new THREE.Mesh(geo, mat);
+  sphere.position.copy(point);
+  sphere.name = '__measure__';
+  scene.add(sphere);
+  measureMarkers.push(sphere);
+  measurePoints.push(point.clone());
+
+  if (measurePoints.length === 1) {
+    document.getElementById('measure-result').textContent = '点2をクリック（点1をクリックで削除）';
+  } else if (measurePoints.length === 2) {
+    // 2点間ライン
+    const pts = [measurePoints[0], measurePoints[1]];
+    const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
+    const lineMat = new THREE.LineDashedMaterial({ color: 0x2563eb, dashSize: 0.08, gapSize: 0.04, linewidth: 2 });
+    measureLine = new THREE.Line(lineGeo, lineMat);
+    measureLine.computeLineDistances();
+    measureLine.name = '__measure__';
+    scene.add(measureLine);
+
+    // 距離計算（単位: mm固定）
+    const dist3js = measurePoints[0].distanceTo(measurePoints[1]);
+    const disp = dist3js.toFixed(2) + ' mm';
+    document.getElementById('measure-result').textContent = disp + '  (クリックで再測定)';
+    setStatus(`測定結果: ${disp}`);
+  }
+}
+window.toggleMeasureMode = toggleMeasureMode;
+
+// ════════════════════════════════════════════════════════════════
+// ④ 分解表示（エクスプローダー）
+// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
+// 分解表示（スライダー式）
+// ════════════════════════════════════════════════════════════════
+let explodeOrigPos = new Map();  // uuid → 元のposition
+let explodeHighlight = null;
+
+function toggleExplodePanel() {
+  const bar = document.getElementById('explode-bar');
+  const btn = document.getElementById('btn-explode');
+  const isOpen = bar.classList.contains('open');
+  if (isOpen) {
+    closeExplodePanel();
+  } else {
+    bar.classList.add('open');
+    btn.classList.add('active');
+    saveExplodeOrigins();
+    document.getElementById('explode-slider').value = 0;
+    setStatus('分解表示: スライダーで展開量を調整');
+  }
+}
+
+function closeExplodePanel() {
+  document.getElementById('explode-bar').classList.remove('open');
+  document.getElementById('btn-explode').classList.remove('active');
+  updateExplode(0);
+  setStatus('分解表示終了');
+}
+
+function saveExplodeOrigins() {
+  explodeOrigPos.clear();
+  if (!activeModel || !models[activeModel]) return;
+  models[activeModel].traverse(c => {
+    explodeOrigPos.set(c.uuid, c.position.clone());
+  });
+}
+
+function updateExplode(t) {
+  t = parseFloat(t);
+  if (!activeModel || !models[activeModel]) return;
+  const root = models[activeModel];
+  const rootBox = new THREE.Box3().setFromObject(root);
+  const rootCenter = rootBox.getCenter(new THREE.Vector3());
+
+  function explodeNode(obj, depth) {
+    const origPos = explodeOrigPos.get(obj.uuid);
+    if (!origPos) return;
+    if (depth > 0) {
+      // 親の中心から見た方向に展開
+      const parentBox = new THREE.Box3().setFromObject(obj.parent || root);
+      const parentCenter = parentBox.getCenter(new THREE.Vector3());
+      const worldPos = new THREE.Vector3();
+      obj.getWorldPosition(worldPos);
+      const dir = worldPos.clone().sub(parentCenter).normalize();
+      if (dir.lengthSq() < 0.0001) dir.set(Math.random()-.5, 1, Math.random()-.5).normalize();
+      const spread = t * depth * 1.2;
+      obj.position.copy(origPos).addScaledVector(dir, spread);
+    }
+    obj.children.forEach(c => { if (!c.name.startsWith('__')) explodeNode(c, depth + 1); });
+  }
+
+  root.children.forEach(c => { if (!c.name.startsWith('__')) explodeNode(c, 1); });
+}
+
+window.toggleExplodePanel = toggleExplodePanel;
+window.closeExplodePanel  = closeExplodePanel;
+window.updateExplode      = updateExplode;
+
+// ════════════════════════════════════════════════════════════════
+// 部品移動（クリック/Shift+クリック複数選択 → 矢印ボタン移動）
+// ════════════════════════════════════════════════════════════════
+let explodeDragMode    = false;
+let explodeDragTarget  = null;              // 単一（後方互換）
+let moveSelectedObjs   = [];               // 複数選択リスト
+let moveHighlights     = [];               // BoxHelper 複数
+let moveOrigPos        = new Map();
+
+function toggleMovePanel() {
+  const bar = document.getElementById('move-bar');
+  const btn = document.getElementById('btn-move');
+  const isOpen = bar.style.display !== 'none' && bar.style.display !== '';
+  if (isOpen) {
+    closeMovePanel();
+  } else {
+    bar.style.display = 'block';
+    btn.classList.add('active');
+    explodeDragMode = true;
+    renderer.domElement.style.cursor = 'crosshair';
+    document.getElementById('move-step').addEventListener('input', function() {
+      document.getElementById('move-step-val').textContent = parseFloat(this.value).toFixed(2);
+    });
+    // 断面表示と同じAxesHelperを表示
+    showAxesHelper();
+    setStatus('部品移動: 部品をクリックして選択 → 矢印ボタンで移動');
+  }
+}
+
+function closeMovePanel() {
+  document.getElementById('move-bar').style.display = 'none';
+  document.getElementById('btn-move').classList.remove('active');
+  explodeDragMode   = false;
+  explodeDragTarget = null;
+  clearMoveHighlight();
+  renderer.domElement.style.cursor = 'default';
+  // 断面パネルが閉じていればAxesも隠す
+  const clipOpen = document.getElementById('clip-panel').classList.contains('open');
+  if (!clipOpen) hideAxesHelper();
+  setStatus('部品移動終了');
+}
+
+function clearMoveHighlight() {
+  moveHighlights.forEach(h => scene.remove(h));
+  moveHighlights = [];
+  moveSelectedObjs = [];
+  explodeHighlight = null;
+  explodeDragTarget = null;
+}
+
+function selectExplodeTarget(obj, additive) {
+  if (!additive) {
+    clearMoveHighlight();
+    moveSelectedObjs = [];
+  }
+  // 既に選択済みなら除外（トグル）
+  const idx = moveSelectedObjs.findIndex(o => o.uuid === obj.uuid);
+  if (idx >= 0) {
+    scene.remove(moveHighlights[idx]);
+    moveHighlights.splice(idx, 1);
+    moveSelectedObjs.splice(idx, 1);
+  } else {
+    if (!moveOrigPos.has(obj.uuid)) moveOrigPos.set(obj.uuid, obj.position.clone());
+    const hl = new THREE.BoxHelper(obj, additive ? 0x7c3aed : 0x2563eb);
+    hl.name = '__move_hl__';
+    scene.add(hl);
+    moveHighlights.push(hl);
+    moveSelectedObjs.push(obj);
+  }
+  explodeDragTarget = moveSelectedObjs[moveSelectedObjs.length - 1] || null;
+  explodeHighlight  = moveHighlights[moveHighlights.length - 1] || null;
+
+  // UI更新
+  const count = moveSelectedObjs.length;
+  if (count === 0) {
+    document.getElementById('explode-selected').innerHTML =
+      '部品をクリックして選択<br><span style="font-weight:400;color:#9ca3af">Shift+クリックで複数選択</span>';
+  } else {
+    document.getElementById('explode-selected').textContent =
+      count + '件選択中';
+  }
+  // リスト表示
+  const listEl = document.getElementById('move-selected-list');
+  if (listEl) {
+    listEl.innerHTML = moveSelectedObjs.map(o =>
+      '<div style="padding:1px 0;border-bottom:1px solid #f3f4f6">• ' + (o.name || '(無名)') + '</div>'
+    ).join('');
+  }
+  syncMoveInputs();
+}
+
+function moveSelected(dx, dy, dz) {
+  const targets = moveSelectedObjs.length > 0 ? moveSelectedObjs : (explodeDragTarget ? [explodeDragTarget] : []);
+  if (targets.length === 0) return;
+  const step = parseFloat(document.getElementById('move-step').value) || 0.2;
+  targets.forEach(t => {
+    t.position.x += dx * step;
+    t.position.y += dy * step;
+    t.position.z += dz * step;
+  });
+  moveHighlights.forEach(h => h.update());
+  moveHighlights.forEach(h => h.update());
+  if (explodeHighlight) explodeHighlight.update();
+}
+
+function resetMove() {
+  moveOrigPos.forEach((pos, uuid) => {
+    if (activeModel && models[activeModel]) {
+      models[activeModel].traverse(o => { if (o.uuid === uuid) o.position.copy(pos); });
+    }
+  });
+  moveOrigPos.clear();
+  clearMoveHighlight();
+  document.getElementById('explode-selected').innerHTML =
+    '部品をクリックして選択<br><span style="font-weight:400;color:#9ca3af">Shift+クリックで複数選択</span>';
+  const listEl = document.getElementById('move-selected-list');
+  if (listEl) listEl.innerHTML = '';
+  setStatus('部品位置をリセットしました');
+}
+
+window.toggleMovePanel  = toggleMovePanel;
+window.closeMovePanel   = closeMovePanel;
+window.moveSelected     = moveSelected;
+window.resetMove        = resetMove;
+
+// 絶対位置入力で移動
+function moveToAbsolute(axis) {
+  const targets = moveSelectedObjs.length > 0 ? moveSelectedObjs : (explodeDragTarget ? [explodeDragTarget] : []);
+  if (targets.length === 0) return;
+  const val = parseFloat(document.getElementById('move-' + axis + '-val').value);
+  if (isNaN(val)) return;
+  targets.forEach(t => { t.position[axis] = val; });
+  moveHighlights.forEach(h => h.update());
+}
+
+function moveToAbsoluteAll() {
+  const targets = moveSelectedObjs.length > 0 ? moveSelectedObjs : (explodeDragTarget ? [explodeDragTarget] : []);
+  if (targets.length === 0) return;
+  ['x','y','z'].forEach(ax => {
+    const val = parseFloat(document.getElementById('move-' + ax + '-val').value);
+    if (!isNaN(val)) targets.forEach(t => { t.position[ax] = val; });
+  });
+  moveHighlights.forEach(h => h.update());
+}
+
+// 選択時に現在位置を入力欄に反映
+function syncMoveInputs() {
+  if (!explodeDragTarget) return;
+  ['x','y','z'].forEach(ax => {
+    const el = document.getElementById('move-' + ax + '-val');
+    if (el) el.value = explodeDragTarget.position[ax].toFixed(3);
+  });
+}
+
+window.moveToAbsolute    = moveToAbsolute;
+window.moveToAbsoluteAll = moveToAbsoluteAll;
+
+// 部品移動パネル内の小Axes
+
+
+window.addAnnotation   = addAnnotation;
+window.deleteAnnotation = deleteAnnotation;
+window.selectAnnotation = selectAnnotation;
+window.switchTab       = switchTab;
+window.activateModel   = (name) => activateModel(name, null, null);
+window.annotations       = annotations;
+window.renderAnnotations  = renderAnnotations;
+// ── 属性ON/OFFトグル ────────────────────────────
+function toggleAnnVisible(id, visible) {
+  const ann = annotations.find(a => a.id === id);
+  if (!ann) return;
+  ann.visible = visible;
+  const el = document.getElementById('acc-item-' + id);
+  if (el) el.classList.toggle('ann-off', !visible);
+  updateAllToggleState();
+}
+
+function toggleAllAnnotations(visible) {
+  annotations.forEach(a => { a.visible = visible; });
+  renderAnnotations();
+  const label = document.getElementById('all-toggle-label');
+  if (label) label.textContent = visible ? 'すべてON' : 'すべてOFF';
+}
+
+function updateAllToggleState() {
+  const allOn  = annotations.every(a => a.visible !== false);
+  const allOff = annotations.every(a => a.visible === false);
+  const cb = document.getElementById('all-ann-toggle');
+  const label = document.getElementById('all-toggle-label');
+  if (cb) cb.checked = !allOff;
+  if (label) label.textContent = allOn ? 'すべてON' : allOff ? 'すべてOFF' : '一部ON';
+}
+
+window.toggleAnnVisible      = toggleAnnVisible;
+window.toggleAllAnnotations  = toggleAllAnnotations;
+Object.defineProperty(window, 'idCounter', { get() { return idCounter; }, set(v) { idCounter = v; } });
+// internal helpers for sample auto-load
+window.__showLoading   = showLoading;
+window.__setStatus     = setStatus;
+window.__addModel      = addModel;
+window.__loadSampleAnnotations = function(items) {
+  annotations.length = 0;
+  items.forEach(function(item) { annotations.push(item); });
+  idCounter = Math.max.apply(null, items.map(function(a){ return a.id; }).concat([0])) + 1;
+  renderAnnotations();
+};
+
+// ─── Init Three.js ─────────────────────────────────────────────────────────
+async function initThree() {
+  gltfLoader = new GLTFLoader();
+  objLoader  = new OBJLoader();
+  stlLoader  = new STLLoader();
+  // expose loaders for external scripts
+  window.__gltfLoader = gltfLoader;
+  window.__objLoader  = objLoader;
+  window.__stlLoader  = stlLoader;
+
+  const container = document.getElementById('three-container');
+  const w = container.clientWidth, h = container.clientHeight;
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xf5f7fa);
+
+  camera = new THREE.PerspectiveCamera(45, w / h, 0.001, 10000);
+  camera.position.set(3, 2, 5);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));  // ぼやけ防止: 実DPR適用
+  renderer.setSize(w, h);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  // canvas をシャープに
+  renderer.domElement.style.imageRendering = 'pixelated';
+  container.appendChild(renderer.domElement);
+
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = false;
+
+  // Lighting
+  const ambient = new THREE.AmbientLight(0x8899aa, 1.2);
+  scene.add(ambient);
+  const dir1 = new THREE.DirectionalLight(0xffffff, 1.2);
+  dir1.position.set(5, 10, 7);
+  dir1.castShadow = true;
+  scene.add(dir1);
+  const dir2 = new THREE.DirectionalLight(0xccddff, 0.5);
+  dir2.position.set(-5, -3, -5);
+  scene.add(dir2);
+  const hemi = new THREE.HemisphereLight(0xffffff, 0xc8d4e0, 0.8);
+  scene.add(hemi);
+
+  // Grid
+  const grid = new THREE.GridHelper(20, 40, 0xb0bec8, 0xc8d4de);
+  grid.name = "__grid__";
+  scene.add(grid);
+  gridObject = grid;  // 直接参照を保持
+  grid.visible = false;  // デフォルト非表示
+
+  // Click handler
+  renderer.domElement.addEventListener('click', onCanvasClick);
+  renderer.domElement.addEventListener('mousemove', onCanvasMouseMove);
+
+  // ── 範囲選択（ドラッグ） ──────────────────────────────────
+  let dragStart = null, isDragging = false;
+  const DRAG_THRESHOLD = 6; // px以上でドラッグ扱い
+
+  let shiftHeld = false; // Shiftが押された状態でmousedown
+  renderer.domElement.addEventListener('mousedown', ev => {
+    if (ev.button !== 0) return;
+    if (measureMode || repositionTargetId !== null || pinMode) return;
+    shiftHeld = ev.shiftKey;
+    // Shift押下時は即座にOrbitControlsを無効化（モデルが動かないよう）
+    if (ev.shiftKey && window.controls) controls.enabled = false;
+    // Shiftなし = 通常カメラ操作 → ドラッグ開始しない
+    if (!ev.shiftKey && !explodeDragMode) return;
+    dragStart = { x: ev.clientX, y: ev.clientY };
+    isDragging = false;
+  });
+
+  renderer.domElement.addEventListener('mousemove', ev => {
+    if (!dragStart) return;
+    const dx = ev.clientX - dragStart.x, dy = ev.clientY - dragStart.y;
+    if (!isDragging && Math.sqrt(dx*dx+dy*dy) > DRAG_THRESHOLD) {
+      isDragging = true;
+    }
+    if (!isDragging) return;
+
+    const box   = document.getElementById('drag-select-box');
+    const rect  = renderer.domElement.getBoundingClientRect();
+    const x1 = Math.min(dragStart.x, ev.clientX) - rect.left;
+    const y1 = Math.min(dragStart.y, ev.clientY) - rect.top;
+    const w  = Math.abs(dx), h = Math.abs(dy);
+    box.style.display = 'block';
+    box.style.left   = x1 + 'px';
+    box.style.top    = y1 + 'px';
+    box.style.width  = w  + 'px';
+    box.style.height = h  + 'px';
+  });
+
+  window.addEventListener('mouseup', ev => {
+    // OrbitControls を必ず復活
+    if (window.controls) controls.enabled = true;
+    const box = document.getElementById('drag-select-box');
+    if (box) box.style.display = 'none';
+    if (!dragStart || !isDragging) { dragStart = null; isDragging = false; return; }
+
+    if (activeModel && models[activeModel] && !explodeDragMode) {
+      // Shift+ドラッグ矩形選択
+      const rect  = renderer.domElement.getBoundingClientRect();
+      const x1n = (Math.min(dragStart.x, ev.clientX) - rect.left) / rect.width * 2 - 1;
+      const x2n = (Math.max(dragStart.x, ev.clientX) - rect.left) / rect.width * 2 - 1;
+      const y1n = -((Math.min(dragStart.y, ev.clientY) - rect.top) / rect.height * 2 - 1);
+      const y2n = -((Math.max(dragStart.y, ev.clientY) - rect.top) / rect.height * 2 - 1);
+      const found = [];
+      models[activeModel].traverse(obj => {
+        if (!obj.isMesh || obj.name.startsWith('__') || !obj.visible) return;
+        const pos = new THREE.Vector3();
+        obj.getWorldPosition(pos);
+        pos.project(camera);
+        if (pos.x >= x1n && pos.x <= x2n && pos.y >= y2n && pos.y <= y1n) found.push(obj);
+      });
+      if (found.length > 0) {
+        // 矩形内を複数ハイライト
+        highlightMultipleUUIDs(models[activeModel], found.map(o => o.uuid));
+        found.forEach(o => expandToUUID(o.uuid));
+        setStatus(`矩形選択: ${found.length}件の部品を選択`);
+      }
+    } else if (explodeDragMode) {
+      const rect  = renderer.domElement.getBoundingClientRect();
+      const x1n = (Math.min(dragStart.x, ev.clientX) - rect.left) / rect.width * 2 - 1;
+      const x2n = (Math.max(dragStart.x, ev.clientX) - rect.left) / rect.width * 2 - 1;
+      const y1n = -((Math.min(dragStart.y, ev.clientY) - rect.top) / rect.height * 2 - 1);
+      const y2n = -((Math.max(dragStart.y, ev.clientY) - rect.top) / rect.height * 2 - 1);
+      if (activeModel && models[activeModel]) {
+        models[activeModel].traverse(obj => {
+          if (!obj.isMesh || obj.name.startsWith('__') || !obj.visible) return;
+          const pos = new THREE.Vector3();
+          obj.getWorldPosition(pos);
+          pos.project(camera);
+          if (pos.x >= x1n && pos.x <= x2n && pos.y >= y2n && pos.y <= y1n) {
+            selectExplodeTarget(obj, true);
+          }
+        });
+      }
+    }
+    dragStart = null; isDragging = false;
+  });
+
+  window.addEventListener('resize', onResize);
+  initAxesOverlay();
+  animate();
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  moveHighlights.forEach(h => h.update());
+  if (explodeHighlight) explodeHighlight.update();
+  renderer.render(scene, camera);
+  renderAxesOverlay();
+  renderMoveAxes();
+  updatePinOverlay();
+  if (window.updateViewCubeFromCamera) window.updateViewCubeFromCamera(camera);
+}
+
+function onResize() {
+  const c = document.getElementById('three-container');
+  camera.aspect = c.clientWidth / c.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(c.clientWidth, c.clientHeight);
+}
+
+// ─── Model Loading ──────────────────────────────────────────────────────────
+function loadModelFiles(files) {
+  for (const f of files) loadFile(f);
+}
+
+function loadFile(file) {
+  showLoading(true);
+  setStatus('LOADING ' + file.name);
+  const ext = file.name.split('.').pop().toLowerCase();
+  const name = file.name;
+
+  if (!['glb','gltf','obj','stl'].includes(ext)) {
+    showLoading(false);
+    setStatus('UNSUPPORTED FORMAT: ' + ext.toUpperCase());
+    return;
+  }
+
+  // FileReaderでArrayBufferとして読み込む（iframe環境でもcreateObjectURLに依存しない）
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const buffer = e.target.result;
+    try {
+      if (ext === 'glb' || ext === 'gltf') {
+        gltfLoader.parse(buffer, '', gltf => addModel(name, gltf.scene, file), err => loadError(err, name));
+      } else if (ext === 'stl') {
+        const geo = stlLoader.parse(buffer);
+        const mat = new THREE.MeshPhongMaterial({ color: 0x6699cc, specular: 0x223344, shininess: 40 });
+        const mesh = new THREE.Mesh(geo, mat);
+        addModel(name, mesh, file);
+      } else if (ext === 'obj') {
+        const text = new TextDecoder().decode(buffer);
+        const obj = objLoader.parse(text);
+        addModel(name, obj, file);
+      }
+    } catch(err) {
+      loadError(err, name);
+    }
+  };
+  reader.onerror = () => loadError(new Error('FileReader error'), name);
+  reader.readAsArrayBuffer(file);
+}
+
+function addModel(name, obj, file) {
+  // Center & scale
+  const box = new THREE.Box3().setFromObject(obj);
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z);
+  const scale = 4 / maxDim;
+  obj.scale.setScalar(scale);
+  obj.position.sub(center.multiplyScalar(scale));
+  obj.position.y -= (size.y * scale) / 2;
+
+  // Shadows
+  obj.traverse(c => {
+    if (c.isMesh) {
+      c.castShadow = true;
+      c.receiveShadow = true;
+      // エッジライン（部品境界強調）
+      try {
+        const edges = new THREE.EdgesGeometry(c.geometry, 25); // 25度以上の角にエッジ
+        const lineMat = new THREE.LineBasicMaterial({ color: 0x334455, transparent: true, opacity: 0.4 });
+        const edgeMesh = new THREE.LineSegments(edges, lineMat);
+        edgeMesh.name = '__edge__';
+        c.add(edgeMesh);
+      } catch(e) {}
+    }
+  });
+
+  if (models[name]) scene.remove(models[name]);
+  models[name] = obj;
+  scene.add(obj);
+  showLoading(false);
+  setStatus('LOADED: ' + name);
+  document.getElementById('drop-zone').classList.add('hidden');
+  updateModelList();
+  activateModel(name, file, size);
+}
+
+function loadError(e, name) {
+  showLoading(false);
+  setStatus('ERROR: ' + name);
+  console.error(e);
+}
+
+function activateModel(name, file, size) {
+  // Hide all, show active
+  for (const [n, o] of Object.entries(models)) o.visible = (n === name);
+  activeModel = name;
+  updateModelList();
+  if (file && size) updateModelInfo(name, file, size);
+  resetCamera();
+}
+
+// ── ツリービュー ──────────────────────────────────────────────────────────
+let selectedTreeNode = null;
+
+function updateModelList() {
+  const list = document.getElementById('model-list');
+  const names = Object.keys(models);
+  if (!names.length) {
+    list.innerHTML = '<div class="no-model">モデルファイルを<br>読み込んでください</div>';
+    return;
+  }
+
+  // 複数モデルがある場合のモデル選択UI
+  let html = '';
+  if (names.length > 1) {
+    html += `<div style="padding:6px 8px;border-bottom:1px solid var(--border);font-size:11px;color:var(--text-dim);font-family:monospace">// ファイル</div>`;
+    html += names.map(n => `
+      <div class="tree-row ${n===activeModel?'selected':''}" onclick="window.activateModel('${n}')" style="padding-left:10px">
+        <span class="tree-icon">⬡</span>
+        <span class="tree-label">${n}</span>
+      </div>`).join('');
+    html += `<div style="padding:6px 8px;border-bottom:1px solid var(--border);border-top:1px solid var(--border);font-size:11px;color:var(--text-dim);font-family:monospace;margin-top:4px">// 構造</div>`;
+  }
+
+  // アクティブモデルの階層ツリーを構築
+  if (activeModel && models[activeModel]) {
+    html += buildTreeHTML(models[activeModel], 0);
+  }
+  list.innerHTML = html;
+}
+
+function buildTreeHTML(obj, depth) {
+  const hasChildren = obj.children && obj.children.filter(c => !c.name.startsWith('__') && !c.isGridHelper).length > 0;
+  const isMesh = obj.isMesh || obj.isSkinnedMesh;
+  const name = obj.name || (isMesh ? '(mesh)' : '(group)');
+  const nodeId = 'tnode_' + obj.uuid.replace(/-/g,'').slice(0,8);
+
+  // ルートのSceneノードはスキップして子から
+  if (obj.isScene) {
+    return obj.children.map(c => buildTreeHTML(c, depth)).join('');
+  }
+  // __edge__ など内部ノード・GridHelperはスキップ
+  if (obj.name.startsWith('__') || obj.isGridHelper || obj.isAxesHelper) return '';
+
+  const indent = depth * 14;
+  const icon = isMesh ? '▪' : (hasChildren ? '⬡' : '○');
+  const rowClass = isMesh ? 'part' : 'assy';
+  const toggleIcon = hasChildren ? '▸' : ' '; // デフォルト閉じ状態
+
+  let html = `<div class="tree-node" id="${nodeId}">
+    <div class="tree-row ${rowClass}" 
+         style="padding-left:${8+indent}px"
+         onclick="treeSelect(event,'${obj.uuid}')"
+         title="${name}">
+      <span class="tree-toggle" onclick="treeToggle(event,'${nodeId}_ch')">${toggleIcon}</span>
+      <span class="tree-icon">${icon}</span>
+      <span class="tree-label">${name}</span>
+      <span class="tree-eye" onclick="treeToggleVisible(event,'${obj.uuid}')" title="表示/非表示">👁</span>
+    </div>`;
+
+  if (hasChildren) {
+    // デフォルト閉じ: max-height:0px
+    html += `<div class="tree-children" id="${nodeId}_ch" style="max-height:0px">`;
+    html += obj.children.map(c => buildTreeHTML(c, depth+1)).join('');
+    html += `</div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+// uuid を持つノードまでのパスを全て展開する
+function expandToUUID(targetUUID) {
+  if (!activeModel || !models[activeModel]) return;
+
+  // 対象ノードまでの祖先UUIDリストを収集
+  const ancestors = [];
+  function findAncestors(obj, target) {
+    if (obj.uuid === target) return true;
+    for (const c of obj.children) {
+      if (findAncestors(c, target)) {
+        ancestors.push(obj.uuid);
+        return true;
+      }
+    }
+    return false;
+  }
+  findAncestors(models[activeModel], targetUUID);
+
+  // 各祖先のツリーノードを開く
+  ancestors.forEach(uuid => {
+    const nodeId = 'tnode_' + uuid.replace(/-/g,'').slice(0,8);
+    const childEl = document.getElementById(nodeId + '_ch');
+    if (childEl && (childEl.style.maxHeight === '0px' || childEl.style.maxHeight === '')) {
+      childEl.style.maxHeight = '2000px';
+      const btn = childEl.previousElementSibling && childEl.previousElementSibling.querySelector('.tree-toggle');
+      if (btn) btn.textContent = '▾';
+    }
+  });
+
+  // 対象ノード自身もスクロールして見えるようにする
+  const targetNodeId = 'tnode_' + targetUUID.replace(/-/g,'').slice(0,8);
+  const targetEl = document.getElementById(targetNodeId);
+  if (targetEl) {
+    setTimeout(() => targetEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 150);
+  }
+}
+
+// ツリー開閉
+window.treeToggle = function(e, childId) {
+  e.stopPropagation();
+  const el = document.getElementById(childId);
+  if (!el) return;
+  const isOpen = el.style.maxHeight !== '0px' && el.style.maxHeight !== '';
+  el.style.maxHeight = isOpen ? '0px' : '2000px';
+  const btn = el.previousElementSibling.querySelector('.tree-toggle');
+  if (btn) btn.textContent = isOpen ? '▸' : '▾';
+};
+
+// ツリー選択（オブジェクトをハイライト + ツリー展開）
+window.treeSelect = function(e, uuid) {
+  document.querySelectorAll('.tree-row.selected').forEach(el => el.classList.remove('selected'));
+  e.currentTarget.classList.add('selected');
+  selectedTreeNode = uuid;
+  if (activeModel && models[activeModel]) {
+    highlightByUUID(models[activeModel], uuid);
+    expandToUUID(uuid);
+  }
+};
+
+function clearSelectionOutlines() {
+  selectedOutlines.forEach(o => {
+    if (o.parent) o.parent.remove(o);
+    o.geometry.dispose();
+    o.material.dispose();
+  });
+  selectedOutlines = [];
+}
+
+// 単一UUIDにアウトラインを付与するヘルパー
+function _applyOutline(mesh) {
+  try {
+    const outlineGeo = mesh.geometry.clone();
+    const outlineMat = new THREE.MeshBasicMaterial({
+      color: 0xff6600, side: THREE.BackSide, transparent: true, opacity: 0.7
+    });
+    const outline = new THREE.Mesh(outlineGeo, outlineMat);
+    outline.name = '__sel_outline__';
+    outline.scale.setScalar(1.04);
+    mesh.add(outline);
+    selectedOutlines.push(outline);
+  } catch(e) {}
+}
+
+// additive=false: 単一選択（既存クリア）、additive=true: 追加選択
+function highlightByUUID(obj, uuid, additive) {
+  if (!additive) {
+    clearSelectionOutlines();
+    selectedMeshUUIDs.clear();
+  }
+  // 対象を追加
+  selectedMeshUUIDs.add(uuid);
+  // 子孫Meshも追加
+  obj.traverse(c => { if (c.isMesh && !c.name.startsWith('__') && isDescendantOf(c, uuid)) selectedMeshUUIDs.add(c.uuid); });
+
+  // 全メッシュのマテリアル更新
+  obj.traverse(child => {
+    if (child.isMesh && !child.name.startsWith('__') && child.material) {
+      const isSelected = selectedMeshUUIDs.has(child.uuid) || selectedMeshUUIDs.has(uuid) && (child.uuid===uuid || isDescendantOf(child,uuid));
+      child.material = child.material.clone();
+      if (isSelected && (child.uuid===uuid || isDescendantOf(child,uuid) || selectedMeshUUIDs.has(child.uuid))) {
+        child.material.emissive = new THREE.Color(0xff6600);
+        child.material.emissiveIntensity = 0.6;
+        _applyOutline(child);
+      } else if (!additive) {
+        child.material.emissive = new THREE.Color(0x000000);
+        child.material.emissiveIntensity = 0;
+      }
+    }
+  });
+}
+
+// 複数UUIDをまとめてハイライト（ドラッグ選択後）
+function highlightMultipleUUIDs(obj, uuids) {
+  clearSelectionOutlines();
+  selectedMeshUUIDs = new Set(uuids);
+  obj.traverse(child => {
+    if (child.isMesh && !child.name.startsWith('__') && child.material) {
+      child.material = child.material.clone();
+      if (selectedMeshUUIDs.has(child.uuid)) {
+        child.material.emissive = new THREE.Color(0xff6600);
+        child.material.emissiveIntensity = 0.6;
+        _applyOutline(child);
+      } else {
+        child.material.emissive = new THREE.Color(0x000000);
+        child.material.emissiveIntensity = 0;
+      }
+    }
+  });
+}
+
+function isDescendantOf(child, uuid) {
+  let p = child.parent;
+  while (p) { if (p.uuid === uuid) return true; p = p.parent; }
+  return false;
+}
+
+// 表示/非表示切替
+window.treeToggleVisible = function(e, uuid) {
+  e.stopPropagation();
+  if (!activeModel || !models[activeModel]) return;
+  models[activeModel].traverse(obj => {
+    if (obj.uuid === uuid) { obj.visible = !obj.visible; }
+  });
+  setStatus(obj_visible_status(uuid));
+};
+
+function obj_visible_status(uuid) {
+  if (!activeModel || !models[activeModel]) return '';
+  let vis = true;
+  models[activeModel].traverse(obj => { if (obj.uuid===uuid) vis=obj.visible; });
+  return vis ? 'VISIBLE' : 'HIDDEN';
+}
+
+function updateModelInfo(name, file, size) {
+  const ext = name.split('.').pop().toUpperCase();
+  const sizeMB = file && file.size ? (file.size / 1048576).toFixed(2) : (file && file.size === 0 ? "0.00" : "---");
+  const _mic = document.getElementById('model-info-content');
+  if (!_mic) return;
+  _mic.innerHTML = `
+    <div class="info-section"><div class="info-label">// ファイル名</div><div class="info-value" style="font-size:12px">${name}</div></div>
+    <div class="info-section"><div class="info-label">// 形式</div><div class="info-value mono">${ext}</div></div>
+    <div class="info-section"><div class="info-label">// ファイルサイズ</div><div class="info-value mono">${sizeMB} MB</div></div>
+    <div class="info-section"><div class="info-label">// バウンディングサイズ（正規化前）</div>
+      <div class="info-value mono">X: ${size.x.toFixed(3)}</div>
+      <div class="info-value mono">Y: ${size.y.toFixed(3)}</div>
+      <div class="info-value mono">Z: ${size.z.toFixed(3)}</div>
+    </div>
+  `;
+}
+
+// ─── Camera Controls ────────────────────────────────────────────────────────
+function resetCamera() {
+  camera.position.set(3, 2, 5);
+  camera.lookAt(0, 0, 0);
+  controls.target.set(0, 0, 0);
+  controls.update();
+}
+function setView(v) {
+  const d = 7;
+  if      (v === 'front')  camera.position.set(0, 0, d);
+  else if (v === 'back')   camera.position.set(0, 0, -d);
+  else if (v === 'top')    camera.position.set(0, d, 0.001);
+  else if (v === 'bottom') camera.position.set(0, -d, 0.001);
+  else if (v === 'right')  camera.position.set(d, 0, 0);
+  else if (v === 'left')   camera.position.set(-d, 0, 0);
+  camera.lookAt(0, 0, 0);
+  controls.target.set(0, 0, 0);
+  controls.update();
+}
+function toggleWireframe() {
+  wireframeMode = !wireframeMode;
+  for (const obj of Object.values(models)) {
+    obj.traverse(c => { if (c.isMesh && c.material) c.material.wireframe = wireframeMode; });
+  }
+}
+
+let gridVisible = false;
+let gridObject = null;  // initThree内で直接セットされる
+function toggleGrid() {
+  // フォールバック: 名前でシーンから探す
+  if (!gridObject && scene) {
+    gridObject = scene.getObjectByName('__grid__');
+  }
+  if (!gridObject) { console.warn('GridHelper not found'); return; }
+  gridVisible = !gridVisible;
+  gridObject.visible = gridVisible;
+  const btn = document.getElementById('grid-btn');
+  if (btn) {
+    btn.style.color       = gridVisible ? '' : 'var(--accent)';
+    btn.style.borderColor = gridVisible ? '' : 'var(--accent)';
+    btn.style.background  = gridVisible ? '' : '#eff6ff';
+  }
+  setStatus(gridVisible ? 'グリッド: 表示' : 'グリッド: 非表示');
+}
+
+// ─── Pin / Annotation ───────────────────────────────────────────────────────
+function togglePinMode() {
+  pinMode = !pinMode;
+  document.getElementById('pin-mode-hint').classList.toggle('active', pinMode);
+  const _pmb = document.getElementById('pin-mode-btn'); if(_pmb){_pmb.style.borderColor=pinMode?'var(--accent2)':''; _pmb.style.color=pinMode?'var(--accent2)':'';};
+
+  renderer.domElement.style.cursor = pinMode ? 'crosshair' : 'default';
+}
+
+function onCanvasClick(e) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  const mouse = new THREE.Vector2(
+    ((e.clientX - rect.left) / rect.width) * 2 - 1,
+    -((e.clientY - rect.top) / rect.height) * 2 + 1
+  );
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(mouse, camera);
+
+  // ── 測定モード ──
+  if (measureMode) {
+    const meshes = [];
+    scene.traverse(c => { if (c.isMesh && !c.name.startsWith('__') && c.visible) meshes.push(c); });
+    const hits = raycaster.intersectObjects(meshes, false);
+    if (hits.length > 0) addMeasurePoint(hits[0].point);
+    return;
+  }
+
+  // ── 位置修正モード（最優先） ──
+  if (repositionTargetId !== null && activeModel) {
+    const meshes = [];
+    scene.traverse(c => {
+      if (c.isMesh && !c.name.startsWith('__') && c.visible) meshes.push(c);
+    });
+    const hits = raycaster.intersectObjects(meshes, false);
+    if (hits.length > 0) {
+      const pt = hits[0].point;
+      const ann = annotations.find(a => a.id === repositionTargetId);
+      if (ann) {
+        ann.pinPos = { x: pt.x, y: pt.y, z: pt.z };
+        setStatus('📍 「' + ann.title + '」の位置を更新しました');
+        renderAnnotations();
+      }
+      document.querySelectorAll('.acc-item').forEach(el => el.style.outline = '');
+      repositionTargetId = null;
+      renderer.domElement.style.cursor = 'default';
+    }
+    return;
+  }
+
+  // ── 部品移動モード ──
+  if (explodeDragMode) {
+    const meshes = [];
+    scene.traverse(c => { if (c.isMesh && !c.name.startsWith('__') && c.visible) meshes.push(c); });
+    const hits = raycaster.intersectObjects(meshes, false);
+    if (hits.length > 0) {
+      let target = hits[0].object;
+      if (target.name.startsWith('__') && target.parent) target = target.parent;
+      selectExplodeTarget(target, e.shiftKey);
+    }
+    return;
+  }
+
+  // ── ピン配置モード ──
+  if (!activeModel) return;
+
+  if (pinMode) {
+    const hits = raycaster.intersectObject(models[activeModel], true);
+    if (!hits.length) return;
+    const pt = hits[0].point;
+    pendingAnnotation = { x: pt.x, y: pt.y, z: pt.z };
+    togglePinMode();
+    setStatus('位置を取得 — フォームに属性情報を入力して「追加」してください');
+    // (タブ切替は右パネル廃止により不要)
+    document.getElementById('ann-title').focus();
+    return;
+  }
+
+  // ── 3Dクリックでツリー選択・展開 ──
+  const meshes3d = [];
+  scene.traverse(c => { if (c.isMesh && !c.name.startsWith('__') && c.visible) meshes3d.push(c); });
+  const hit3d = raycaster.intersectObjects(meshes3d, false);
+  if (hit3d.length > 0) {
+    const clicked = hit3d[0].object;
+    const additive = e.shiftKey;
+    if (!additive) {
+      document.querySelectorAll('.tree-row.selected').forEach(el => el.classList.remove('selected'));
+    }
+    selectedTreeNode = clicked.uuid;
+    highlightByUUID(models[activeModel], clicked.uuid, additive);
+    expandToUUID(clicked.uuid);
+    const nodeId = 'tnode_' + clicked.uuid.replace(/-/g,'').slice(0,8);
+    const row = document.querySelector('#' + nodeId + ' > .tree-row');
+    if (row) row.classList.add('selected');
+    setStatus((additive ? `複数選択: ` : `選択: `) + clicked.name);
+  }
+}
+
+let hoveredAnn = null;
+function onCanvasMouseMove(e) {
+  // Check proximity to pin screen positions
+  const rect = renderer.domElement.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  let found = null;
+  for (const ann of annotations) {
+    if (!ann.pinPos) continue;
+    const sp = worldToScreen(ann.pinPos);
+    if (!sp) continue;
+    const dx = mx - sp.x, dy = my - sp.y;
+    if (Math.sqrt(dx*dx + dy*dy) < 20) { found = ann; break; }
+  }
+  const tip = document.getElementById('tooltip-popup');
+  if (found) {
+    const typeBadge = { fault: 'badge-fault', stress: 'badge-stress', note: 'badge-note' }[found.type];
+    const typeLabel = { fault: '不具合', stress: '応力値', note: 'メモ' }[found.type];
+    tip.innerHTML = `
+      <div class="t-type ${typeBadge}">${typeLabel}</div>
+      <div class="t-title">${found.title}</div>
+      ${found.value ? `<div class="t-value">${found.value}</div>` : ''}
+      ${found.desc ? `<div class="t-desc">${found.desc}</div>` : ''}
+    `;
+    tip.style.left = (mx + 16) + 'px';
+    tip.style.top = (my - 10) + 'px';
+    tip.classList.add('visible');
+  } else {
+    tip.classList.remove('visible');
+  }
+}
+
+function addAnnotation() {
+  const title = document.getElementById('ann-title').value.trim();
+  if (!title) { document.getElementById('ann-title').focus(); return; }
+  const ann = {
+    id: ++idCounter,
+    type:   document.getElementById('ann-type').value,
+    title,
+    value:  document.getElementById('ann-value').value.trim(),
+    desc:   document.getElementById('ann-desc').value.trim(),
+    date:   document.getElementById('ann-date').value || '',
+    url:    document.getElementById('ann-url').value.trim(),
+    pinPos: pendingAnnotation || null,
+  };
+  annotations.push(ann);
+  pendingAnnotation = null;
+  // Reset form
+  document.getElementById('ann-title').value = '';
+  document.getElementById('ann-value').value = '';
+  document.getElementById('ann-desc').value = '';
+  document.getElementById('ann-date').value = '';
+  document.getElementById('ann-url').value = '';
+  renderAnnotations();
+  setStatus('属性情報を追加しました');
+}
+
+function deleteAnnotation(id) {
+  annotations = annotations.filter(a => a.id !== id);
+  renderAnnotations();
+}
+
+// 現在選択中のカテゴリ
+let currentAnnCat = 'all';
+
+function switchAnnCat(cat, btn) {
+  currentAnnCat = cat;
+  document.querySelectorAll('.ann-cat-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  renderAnnotations();
+}
+window.switchAnnCat = switchAnnCat;
+
+function toggleAccItem(id) {
+  const el = document.getElementById('acc-item-' + id);
+  if (!el) return;
+  el.classList.toggle('open');
+}
+window.toggleAccItem = toggleAccItem;
+
+function toggleAddForm() {
+  const body = document.getElementById('form-body');
+  const icon = document.getElementById('form-toggle-icon');
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  icon.textContent = isOpen ? '＋' : '－';
+}
+window.toggleAddForm = toggleAddForm;
+
+function focusPin(id) {
+  const ann = annotations.find(a => a.id === id);
+  if (!ann || !ann.pinPos || !camera || !controls) return;
+  const p = ann.pinPos;
+  controls.target.set(p.x, p.y, p.z);
+  camera.position.set(p.x + 3, p.y + 2, p.z + 4);
+  controls.update();
+}
+window.focusPin = focusPin;
+
+function startRepositionPin(id) {
+  repositionTargetId = id;
+  const ann = annotations.find(a => a.id === id);
+  setStatus('📍 位置修正モード: 「' + (ann ? ann.title : '') + '」の新しい位置を3Dビュー上でクリックしてください');
+  renderer.domElement.style.cursor = 'crosshair';
+  document.querySelectorAll('.acc-item').forEach(el => el.style.outline = '');
+  const el = document.getElementById('acc-item-' + id);
+  if (el) el.style.outline = '2px solid #d97706';
+}
+window.startRepositionPin = startRepositionPin;
+
+function renderAnnotations() {
+  const list = document.getElementById('ann-list');
+  if (!list) return;
+  const filtered = currentAnnCat === 'all'
+    ? annotations
+    : annotations.filter(a => a.type === currentAnnCat);
+
+  // カテゴリタブの件数を更新
+  const counts = { all: annotations.length, fault: 0, stress: 0, note: 0 };
+  annotations.forEach(a => { if (counts[a.type] !== undefined) counts[a.type]++; });
+  document.querySelectorAll('.ann-cat-tab').forEach(tab => {
+    const cat = tab.dataset.cat;
+    const n = counts[cat] ?? 0;
+    const labels = { all: 'すべて', fault: '不具合', stress: '応力値', note: 'メモ' };
+    tab.textContent = `${labels[cat]}(${n})`;
+  });
+
+  if (!annotations.length) {
+    list.innerHTML = '<div class="empty-ann"><div class="e-icon">📋</div>属性情報がありません<br>フォームから追加してください</div>';
+    return;
+  }
+  if (!filtered.length) {
+    const label = {fault:'不具合', stress:'応力値', note:'メモ'}[currentAnnCat];
+    list.innerHTML = `<div class="empty-ann"><div class="e-icon">🔍</div>「${label}」の項目はありません</div>`;
+    return;
+  }
+
+  const typeLabel = { fault: '不具合', stress: '応力値', note: 'メモ' };
+  const typeBadge = { fault: 'badge-fault', stress: 'badge-stress', note: 'badge-note' };
+
+  list.innerHTML = filtered.map(a => `
+    <div class="acc-item ${a.visible === false ? 'ann-off' : ''}" id="acc-item-${a.id}">
+      <div class="acc-header" onclick="toggleAccItem(${a.id})" style="gap:6px">
+        <span class="acc-arrow" style="margin-right:2px">▼</span>
+        <span class="ann-type-badge ${typeBadge[a.type]}">${typeLabel[a.type]}</span>
+        <span style="font-size:13px;font-weight:600;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:4px">${a.title}</span>
+        <label class="ann-toggle" onclick="event.stopPropagation()" title="${a.visible !== false ? 'クリックでピンを非表示' : 'クリックでピンを表示'}">
+          <input type="checkbox" ${a.visible !== false ? 'checked' : ''} onchange="toggleAnnVisible(${a.id}, this.checked)">
+          <span class="ann-toggle-slider"></span>
+        </label>
+      </div>
+      <div class="acc-body">
+        ${a.value ? `<div class="acc-val">${a.value}</div>` : ''}
+        ${a.desc  ? `<div class="acc-desc">${a.desc}</div>` : ''}
+        ${a.date  ? `<div style="font-size:10px;color:#6b7280;margin-bottom:4px">📅 ${a.date}</div>` : ''}
+        ${a.url   ? `<div style="font-size:10px;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🔗 <a href="${a.url}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">${a.url}</a></div>` : ''}
+        <div style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-top:6px;border-top:1px solid #f3f4f6">
+          ${a.pinPos
+            ? `<span style="font-size:10px;color:#6b7280;font-family:monospace;flex:1">📍 ${a.pinPos.x.toFixed(2)}, ${a.pinPos.y.toFixed(2)}, ${a.pinPos.z.toFixed(2)}</span>
+               <button onclick="startRepositionPin(${a.id})" title="位置を再指定" style="font-size:10px;padding:2px 7px;border:1px solid #d97706;color:#d97706;background:none;border-radius:4px;cursor:pointer;white-space:nowrap">✎ 修正</button>`
+            : `<span style="font-size:10px;color:#d1d5db;flex:1">📍 位置未設定</span>
+               <button onclick="startRepositionPin(${a.id})" title="位置を指定" style="font-size:10px;padding:2px 7px;border:1px solid #9ca3af;color:#9ca3af;background:none;border-radius:4px;cursor:pointer;white-space:nowrap">＋ 設定</button>`
+          }
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function selectAnnotation(id) {
+  // アコーディオンを開く
+  const el = document.getElementById('acc-item-' + id);
+  if (el && !el.classList.contains('open')) el.classList.add('open');
+}
+
+// ─── Pin Overlay (project 3D → 2D) ─────────────────────────────────────────
+function worldToScreen(pos) {
+  if (!camera || !renderer) return null;
+  const v = new THREE.Vector3(pos.x, pos.y, pos.z).project(camera);
+  const rect = renderer.domElement.getBoundingClientRect();
+  return { x: (v.x + 1) / 2 * rect.width, y: (-v.y + 1) / 2 * rect.height };
+}
+
+function updatePinOverlay() {
+  const overlay = document.getElementById('pin-overlay');
+  const typeColor = { fault: '#ff3b3b', stress: '#ffcc00', note: '#00ff88' };
+  let html = '';
+  for (const ann of annotations) {
+    if (!ann.pinPos) continue;
+    if (ann.visible === false) continue;
+    const sp = worldToScreen(ann.pinPos);
+    if (!sp) continue;
+    const col = typeColor[ann.type];
+    html += `<div class="pin-label" data-ann-id="${ann.id}" style="left:${sp.x}px;top:${sp.y}px"
+      onclick="selectAnnotationAndScroll(${ann.id})"
+      oncontextmenu="showPinContextMenu(event,${ann.id})">
+      <div class="pin-dot" style="background:${col};box-shadow:0 0 8px ${col}"></div>
+      <div class="pin-tag" style="color:${col};border-color:${col}">${ann.title}</div>
+    </div>`;
+  }
+  overlay.innerHTML = html;
+}
+
+// ピンクリック → 右サイドバーの該当アイテムを開いてスクロール
+function selectAnnotationAndScroll(id) {
+  // 左パネルが折りたたまれていれば開く
+  const lp = document.getElementById('left-panel');
+  if (lp && lp.classList.contains('collapsed')) toggleLeftPanel();
+  // カテゴリをallに（タブ切替は不要）
+  const allTab = document.querySelector('.ann-cat-tab[data-cat="all"]');
+  if (allTab && !allTab.classList.contains('active')) switchAnnCat('all', allTab);
+  // アコーディオン開く
+  const el = document.getElementById('acc-item-' + id);
+  if (el) {
+    el.classList.add('open');
+    // 既存ハイライトをリセット
+    document.querySelectorAll('.acc-item').forEach(e => e.style.outline = '');
+    el.style.outline = '2px solid var(--accent)';
+    setTimeout(() => { el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 80);
+    setTimeout(() => { el.style.outline = ''; }, 1800);
+  }
+}
+window.selectAnnotationAndScroll = selectAnnotationAndScroll;
+
+// ── ピン右クリックコンテキストメニュー ──────────────
+let _pcmTargetId = null;
+
+function showPinContextMenu(e, id) {
+  e.preventDefault();
+  e.stopPropagation();
+  _pcmTargetId = id;
+  const ann = annotations.find(a => a.id === id);
+  if (!ann) return;
+  const menu = document.getElementById('pin-context-menu');
+  document.getElementById('pcm-title').textContent = ann.title;
+  menu.style.display = 'block';
+  // 画面端に収まるよう位置調整
+  const mw = 160, mh = 130;
+  let lx = e.clientX, ly = e.clientY;
+  if (lx + mw > window.innerWidth)  lx = window.innerWidth  - mw - 8;
+  if (ly + mh > window.innerHeight) ly = window.innerHeight - mh - 8;
+  menu.style.left = lx + 'px';
+  menu.style.top  = ly + 'px';
+}
+function hidePinContextMenu() {
+  document.getElementById('pin-context-menu').style.display = 'none';
+  _pcmTargetId = null;
+}
+function pcmFocus() {
+  if (_pcmTargetId !== null) focusPin(_pcmTargetId);
+  hidePinContextMenu();
+}
+function pcmReposition() {
+  if (_pcmTargetId !== null) startRepositionPin(_pcmTargetId);
+  hidePinContextMenu();
+}
+function pcmDelete() {
+  if (_pcmTargetId !== null) { deleteAnnotation(_pcmTargetId); renderAnnotations(); }
+  hidePinContextMenu();
+}
+// 他の場所クリックでメニュー閉じる
+document.addEventListener('click', () => {
+  const menu = document.getElementById('pin-context-menu');
+  if (menu) menu.style.display = 'none';
+});
+window.showPinContextMenu = showPinContextMenu;
+window.pcmFocus = pcmFocus;
+window.pcmReposition = pcmReposition;
+window.pcmDelete = pcmDelete;
+
+// ─── CSV Import ─────────────────────────────────────────────────────────────
+function loadCSV(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.split('\n').filter(l => l.trim());
+    let added = 0;
+    for (let i = 1; i < lines.length; i++) { // skip header
+      const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+      if (cols.length < 2) continue;
+      const [type, title, value, desc, px, py, pz] = cols;
+      if (!title) continue;
+      annotations.push({
+        id: ++idCounter,
+        type: ['fault','stress','note'].includes(type) ? type : 'note',
+        title, value: value || '', desc: desc || '',
+        pinPos: (px && py && pz) ? { x: parseFloat(px), y: parseFloat(py), z: parseFloat(pz) } : null
+      });
+      added++;
+    }
+    renderAnnotations();
+    setStatus(`CSV読込完了: ${added}件の属性情報を追加`);
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+// ─── Export ─────────────────────────────────────────────────────────────────
+function exportAnnotations() {
+  const header = 'type,title,value,desc,pin_x,pin_y,pin_z';
+  const rows = annotations.map(a => [
+    a.type, `"${a.title}"`, `"${a.value}"`, `"${a.desc}"`,
+    a.pinPos ? a.pinPos.x.toFixed(4) : '', a.pinPos ? a.pinPos.y.toFixed(4) : '', a.pinPos ? a.pinPos.z.toFixed(4) : ''
+  ].join(','));
+  const csv = [header, ...rows].join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'annotations.csv';
+  a.click();
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+function setStatus(msg) { document.getElementById('status-text').textContent = msg.toUpperCase(); }
+function showLoading(v) { document.getElementById('loading-overlay').classList.toggle('active', v); }
+function switchTab(name, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+// ─── Drag & Drop ────────────────────────────────────────────────────────────
+const ca = document.getElementById('canvas-area');
+ca.addEventListener('dragover', e => { e.preventDefault(); ca.classList.add('drag-over'); });
+ca.addEventListener('dragleave', () => ca.classList.remove('drag-over'));
+ca.addEventListener('drop', e => {
+  e.preventDefault();
+  ca.classList.remove('drag-over');
+  loadModelFiles(e.dataTransfer.files);
+});
+
+
+// ─── ViewCube ────────────────────────────────────────────────────────────────
+(function() {
+  const S  = 110;   // canvas size (px) — square
+  const R  = 28;    // half-size of cube in canvas units
+
+  // 6面の定義
+  const FACES = [
+    { label:'TOP',   verts:[0,1,2,3], base:'#d4e8fa', hi:'#90c8f0', view:'top'   },
+    { label:'FRONT', verts:[0,4,5,1], base:'#bfd8f0', hi:'#7ab8ec', view:'front' },
+    { label:'RIGHT', verts:[1,5,6,2], base:'#cce0f5', hi:'#8cc4f0', view:'right' },
+    { label:'BACK',  verts:[2,6,7,3], base:'#b8cfea', hi:'#6eaee0', view:'back'  },
+    { label:'LEFT',  verts:[3,7,4,0], base:'#c4d8ec', hi:'#82bbe8', view:'left'  },
+    { label:'BTM',   verts:[4,7,6,5], base:'#aec8e0', hi:'#68a8d8', view:'bottom'},
+  ];
+
+  // 8頂点（正規化座標 ±1）
+  const VERTS3 = [
+    [-1, 1,-1],[ 1, 1,-1],[ 1, 1, 1],[-1, 1, 1],
+    [-1,-1,-1],[ 1,-1,-1],[ 1,-1, 1],[-1,-1, 1],
+  ];
+
+  // カメラの向き（クォータニオン）からビューキューブを描く
+  // ビューキューブはカメラと同じ向きのワールド空間を表示するため、
+  // カメラの向きの「逆」を使ってワールド頂点をカメラ空間に変換する
+  let _camQuat = new THREE.Quaternion();
+  let _hovFace = -1;
+
+  function project(v3, q) {
+    // ワールド座標の頂点をカメラ空間へ変換
+    // q = camera.quaternion.invert() → ワールド→カメラ変換
+    const v = new THREE.Vector3(v3[0], v3[1], v3[2]).applyQuaternion(q);
+    // Three.js カメラは -Z を向く → 手前は -z が小さい（より負）
+    // 透視: 手前の面を大きく見せるために -z で割る
+    const d = 5;
+    const scale = d / (d - v.z);
+    return [
+      S/2 + v.x * R * scale,
+      S/2 - v.y * R * scale,
+      v.z
+    ];
+  }
+
+  function drawCube(ctx, hov) {
+    ctx.clearRect(0, 0, S, S);
+
+    // camera.quaternion をそのまま使うと「カメラが向いている方向」
+    // ビューキューブには「ワールドをカメラから見た向き」が必要なので invert()
+    const q   = _camQuat.clone().invert();
+    const pts = VERTS3.map(v => project(v, q));
+
+    // 各面の深度（重心Z）を計算
+    const sorted = FACES.map((f, i) => {
+      const vpts = f.verts.map(vi => pts[vi]);
+      const depth = vpts.reduce((s, p) => s + p[2], 0) / 4;
+      // 法線方向: スクリーン空間の外積で表側判定
+      // Three.js カメラは -Z を向く → カメラ空間でz<0が手前
+      // 外積 cross>0 ならスクリーン上で反時計回り = 表面（カメラ向き）
+      const v0 = vpts[0], v1 = vpts[1], v2 = vpts[2];
+      const ax = v1[0]-v0[0], ay = v1[1]-v0[1];
+      const bx = v2[0]-v0[0], by = v2[1]-v0[1];
+      const cross = ax*by - ay*bx;
+      return { f, i, vpts, depth, visible: cross > 0 };
+    }).sort((a, b) => a.depth - b.depth);  // 手前（z小）が後で描かれるよう昇順
+
+    sorted.forEach(({ f, i, vpts, visible }) => {
+      if (!visible) return;
+      ctx.beginPath();
+      ctx.moveTo(vpts[0][0], vpts[0][1]);
+      for (let k = 1; k < vpts.length; k++) ctx.lineTo(vpts[k][0], vpts[k][1]);
+      ctx.closePath();
+
+      // グラデーション風（奥は暗く）
+      const avgZ = vpts.reduce((s,p)=>s+p[2],0)/4;
+      const bright = Math.min(1, Math.max(0.7, 1 - avgZ * 0.12));
+      ctx.fillStyle = (hov === i) ? f.hi : f.base;
+      ctx.globalAlpha = bright;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = 'rgba(80,130,180,0.8)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // ラベル：全可視面に表示（文字サイズは面の見かけ大きさに合わせる）
+      {
+        const cx = vpts.reduce((s,p)=>s+p[0],0)/vpts.length;
+        const cy = vpts.reduce((s,p)=>s+p[1],0)/vpts.length;
+        // 面の幅を推定してフォントサイズ決定
+        const wEst = Math.abs(vpts[1][0]-vpts[0][0]) + Math.abs(vpts[2][0]-vpts[1][0]);
+        const fSize = Math.max(7, Math.min(11, wEst * 0.22));
+        ctx.fillStyle = (hov === i) ? '#0d2a4a' : '#1e3a58';
+        ctx.font = `bold ${fSize}px "IBM Plex Mono",monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.globalAlpha = 0.92;
+        ctx.fillText(f.label, cx, cy);
+        ctx.globalAlpha = 1;
+      }
+    });
+
+    // ── XYZ軸: キューブ中心から各軸方向に、キューブ外へ突き抜けて伸びる ──
+    // 参考画像のように中心→辺→外側へ、細い矢印＋ラベル
+    const qForAxes = _camQuat.clone().invert();
+    const axDirs = [
+      { dir:[1,0,0], color:'#e53935', label:'X' },
+      { dir:[0,1,0], color:'#43a047', label:'Y' },
+      { dir:[0,0,1], color:'#1e88e5', label:'Z' },
+    ];
+    // キューブ面端（±1）をスクリーンに投影して軸起点をキューブ辺の端に
+    // 軸全体長さ = R * 1.55 (キューブ辺 + 外伸び部分)
+    const axTotalLen = R * 1.55;
+    const axLineEnd  = R * 1.0;  // キューブ辺まで (細線)
+    const axArrowEnd = R * 1.55; // 矢印先端
+
+    axDirs.forEach(ax => {
+      const pd = new THREE.Vector3(...ax.dir).applyQuaternion(qForAxes);
+      // キューブ中心 = スクリーン中心
+      const cx0 = S/2, cy0 = S/2;
+      // 軸方向スクリーン単位ベクトル
+      const sx = pd.x, sy = -pd.y;
+
+      // 線の終端（矢印手前）
+      const lx1 = cx0 + sx * axLineEnd;
+      const ly1 = cy0 + sy * axLineEnd;
+      // 矢印先端
+      const lx2 = cx0 + sx * axArrowEnd;
+      const ly2 = cy0 + sy * axArrowEnd;
+
+      // 軸線（中心 → 矢印手前）
+      ctx.beginPath();
+      ctx.moveTo(cx0, cy0);
+      ctx.lineTo(lx2, ly2);
+      ctx.strokeStyle = ax.color;
+      ctx.lineWidth = 1.2;
+      ctx.globalAlpha = 0.85;
+      ctx.stroke();
+
+      // 矢印頭
+      const ang = Math.atan2(ly2 - ly1, lx2 - lx1);
+      const hs = 5;
+      ctx.beginPath();
+      ctx.moveTo(lx2, ly2);
+      ctx.lineTo(lx2 - hs*Math.cos(ang-0.42), ly2 - hs*Math.sin(ang-0.42));
+      ctx.lineTo(lx2 - hs*Math.cos(ang+0.42), ly2 - hs*Math.sin(ang+0.42));
+      ctx.closePath();
+      ctx.fillStyle = ax.color;
+      ctx.globalAlpha = 0.92;
+      ctx.fill();
+
+      // ラベル（矢印の先からさらに少し外）
+      const lblX = cx0 + sx * (axArrowEnd + 9);
+      const lblY = cy0 + sy * (axArrowEnd + 9);
+      ctx.font = 'bold 8px IBM Plex Mono,monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = ax.color;
+      ctx.globalAlpha = 1;
+      ctx.fillText(ax.label, lblX, lblY);
+      ctx.globalAlpha = 1;
+    });
+  }
+
+  function faceHitTest(ex, ey) {
+    const q = _camQuat.clone().invert();
+    const pts = VERTS3.map(v => project(v, q));
+    // 可視面のみ、手前から順に判定
+    const sorted = FACES.map((f, i) => {
+      const vpts = f.verts.map(vi => pts[vi]);
+      const v0=vpts[0],v1=vpts[1],v2=vpts[2];
+      const ax=v1[0]-v0[0],ay=v1[1]-v0[1];
+      const bx=v2[0]-v0[0],by=v2[1]-v0[1];
+      const cross = ax*by - ay*bx;
+      const depth = vpts.reduce((s,p)=>s+p[2],0)/4;
+      return { f, i, vpts, depth, visible: cross > 0 };
+    }).filter(x => x.visible).sort((a,b)=>a.depth-b.depth);
+
+    for (const {i, vpts} of sorted) {
+      if (pointInPoly(ex, ey, vpts)) return i;
+    }
+    return -1;
+  }
+
+  function pointInPoly(px, py, pts) {
+    let inside = false;
+    for (let i=0, j=pts.length-1; i<pts.length; j=i++) {
+      const [xi,yi]=pts[i],[xj,yj]=pts[j];
+      if (((yi>py)!==(yj>py)) && (px<(xj-xi)*(py-yi)/(yj-yi)+xi)) inside=!inside;
+    }
+    return inside;
+  }
+
+  // カメラクォータニオンをThree.jsから取得して更新
+  window.updateViewCubeFromCamera = function(cam) {
+    _camQuat.copy(cam.quaternion);
+    const c = document.getElementById('view-cube-canvas');
+    if (c) drawCube(c.getContext('2d'), _hovFace);
+  };
+
+  window.onViewCubeClick = function(ev) {
+    const c = ev.target;
+    const r = c.getBoundingClientRect();
+    const fi = faceHitTest(ev.clientX - r.left, ev.clientY - r.top);
+    if (fi < 0) return;
+    const lbl = document.getElementById('view-cube-label');
+    if (lbl) lbl.textContent = FACES[fi].label;
+    window.setView(FACES[fi].view);
+  };
+  window.onViewCubeHover = function(ev) {
+    const c = ev.target;
+    const r = c.getBoundingClientRect();
+    const fi = faceHitTest(ev.clientX - r.left, ev.clientY - r.top);
+    _hovFace = fi;
+    const lbl = document.getElementById('view-cube-label');
+    const LABELS = {top:'上面',front:'正面',right:'側面',back:'背面',left:'左面',bottom:'底面'};
+    if (lbl) lbl.textContent = fi>=0 ? (LABELS[FACES[fi].view]||FACES[fi].label) : '';
+    drawCube(c.getContext('2d'), fi);
+  };
+  window.onViewCubeClear = function() {
+    _hovFace = -1;
+    const c = document.getElementById('view-cube-canvas');
+    if (!c) return;
+    const lbl = document.getElementById('view-cube-label');
+    if (lbl) lbl.textContent = '';
+    drawCube(c.getContext('2d'), -1);
+  };
+
+  // 初期描画
+  function initDraw() {
+    const c = document.getElementById('view-cube-canvas');
+    if (c) drawCube(c.getContext('2d'), -1);
+  }
+  if (document.readyState !== 'loading') setTimeout(initDraw, 80);
+  else window.addEventListener('DOMContentLoaded', initDraw);
+})();
+
+// ─── Boot ───────────────────────────────────────────────────────────────────
+initThree().then(() => {
+  window.dispatchEvent(new Event('three-ready'));
+}).catch(e => {
+  setStatus('INIT ERROR');
+  console.error(e);
+});
+</script>
+
+<script>
+(function() {
+  var SAMPLE_B64 = "Z2xURgIAAAAEmgAAkCgAAEpTT057ImFzc2V0Ijp7InZlcnNpb24iOiIyLjAiLCJnZW5lcmF0b3IiOiJDQUQgVmlld2VyIEhpZXJhcmNoeSBTYW1wbGUifSwic2NlbmUiOjAsInNjZW5lcyI6W3sibmFtZSI6IkJyYWNrZXRBc3NlbWJseSIsIm5vZGVzIjpbMTZdfV0sIm5vZGVzIjpbeyJuYW1lIjoiXHUzMGQ5XHUzMGZjXHUzMGI5XHUzMGQ3XHUzMGVjXHUzMGZjXHUzMGM4IiwibWVzaCI6MH0seyJuYW1lIjoiXHU1ZGU2XHUzMGI1XHUzMGE0XHUzMGM5XHUzMGE2XHUzMGE5XHUzMGZjXHUzMGViIiwibWVzaCI6MX0seyJuYW1lIjoiXHU1M2YzXHUzMGI1XHUzMGE0XHUzMGM5XHUzMGE2XHUzMGE5XHUzMGZjXHUzMGViIiwibWVzaCI6Mn0seyJuYW1lIjoiXHUzMGQwXHUzMGMzXHUzMGFmXHUzMGQ3XHUzMGVjXHUzMGZjXHUzMGM4IiwibWVzaCI6M30seyJuYW1lIjoiXHUzMGEyXHUzMGZjXHUzMGUwXHU2NzJjXHU0ZjUzIiwibWVzaCI6NH0seyJuYW1lIjoiXHU4OGRjXHU1ZjM3XHUzMGVhXHUzMGQ2TCIsIm1lc2giOjV9LHsibmFtZSI6Ilx1ODhkY1x1NWYzN1x1MzBlYVx1MzBkNlIiLCJtZXNoIjo2fSx7Im5hbWUiOiJcdTMwZGNcdTMwZWJcdTMwYzhfMSIsIm1lc2giOjd9LHsibmFtZSI6Ilx1MzBkY1x1MzBlYlx1MzBjOF8yIiwibWVzaCI6OH0seyJuYW1lIjoiXHUzMGRjXHUzMGViXHUzMGM4XzMiLCJtZXNoIjo5fSx7Im5hbWUiOiJcdTMwZGNcdTMwZWJcdTMwYzhfNCIsIm1lc2giOjEwfSx7Im5hbWUiOiJcdTMwYTJcdTMwZmNcdTMwZTBcdTU2ZmFcdTViOWFcdTMwZGNcdTMwZWJcdTMwYzhfMSIsIm1lc2giOjExfSx7Im5hbWUiOiJcdTMwYTJcdTMwZmNcdTMwZTBcdTU2ZmFcdTViOWFcdTMwZGNcdTMwZWJcdTMwYzhfMiIsIm1lc2giOjEyfSx7Im5hbWUiOiJTdWJBc3N5MV9cdTMwZTFcdTMwYTRcdTMwZjNcdTMwZDVcdTMwZWNcdTMwZmNcdTMwZTAiLCJjaGlsZHJlbiI6WzAsMSwyLDNdfSx7Im5hbWUiOiJTdWJBc3N5Ml9cdTMwZDZcdTMwZTlcdTMwYjFcdTMwYzNcdTMwYzhcdTMwYTJcdTMwZmNcdTMwZTAiLCJjaGlsZHJlbiI6WzQsNSw2XX0seyJuYW1lIjoiU3ViQXNzeTNfXHUzMGQ1XHUzMGExXHUzMGI5XHUzMGNhXHUzMGZjXHUzMGJiXHUzMGMzXHUzMGM4IiwiY2hpbGRyZW4iOls3LDgsOSwxMCwxMSwxMl19LHsibmFtZSI6IlRvcEFzc3lfXHUzMGQ2XHUzMGU5XHUzMGIxXHUzMGMzXHUzMGM4XHUzMGEyXHUzMGJiXHUzMGYzXHUzMGQ2XHUzMGVhIiwiY2hpbGRyZW4iOlsxMywxNCwxNV19XSwibWVzaGVzIjpbeyJuYW1lIjoiYmFzZV9wbGF0ZSIsInByaW1pdGl2ZXMiOlt7ImF0dHJpYnV0ZXMiOnsiUE9TSVRJT04iOjAsIk5PUk1BTCI6MX0sImluZGljZXMiOjIsIm1hdGVyaWFsIjowLCJtb2RlIjo0fV19LHsibmFtZSI6ImxlZnRfd2FsbCIsInByaW1pdGl2ZXMiOlt7ImF0dHJpYnV0ZXMiOnsiUE9TSVRJT04iOjMsIk5PUk1BTCI6NH0sImluZGljZXMiOjUsIm1hdGVyaWFsIjoxLCJtb2RlIjo0fV19LHsibmFtZSI6InJpZ2h0X3dhbGwiLCJwcmltaXRpdmVzIjpbeyJhdHRyaWJ1dGVzIjp7IlBPU0lUSU9OIjo2LCJOT1JNQUwiOjd9LCJpbmRpY2VzIjo4LCJtYXRlcmlhbCI6MiwibW9kZSI6NH1dfSx7Im5hbWUiOiJiYWNrX3BsYXRlIiwicHJpbWl0aXZlcyI6W3siYXR0cmlidXRlcyI6eyJQT1NJVElPTiI6OSwiTk9STUFMIjoxMH0sImluZGljZXMiOjExLCJtYXRlcmlhbCI6MywibW9kZSI6NH1dfSx7Im5hbWUiOiJhcm1fYm9keSIsInByaW1pdGl2ZXMiOlt7ImF0dHJpYnV0ZXMiOnsiUE9TSVRJT04iOjEyLCJOT1JNQUwiOjEzfSwiaW5kaWNlcyI6MTQsIm1hdGVyaWFsIjo0LCJtb2RlIjo0fV19LHsibmFtZSI6InJpYl9sZWZ0IiwicHJpbWl0aXZlcyI6W3siYXR0cmlidXRlcyI6eyJQT1NJVElPTiI6MTUsIk5PUk1BTCI6MTZ9LCJpbmRpY2VzIjoxNywibWF0ZXJpYWwiOjUsIm1vZGUiOjR9XX0seyJuYW1lIjoicmliX3JpZ2h0IiwicHJpbWl0aXZlcyI6W3siYXR0cmlidXRlcyI6eyJQT1NJVElPTiI6MTgsIk5PUk1BTCI6MTl9LCJpbmRpY2VzIjoyMCwibWF0ZXJpYWwiOjYsIm1vZGUiOjR9XX0seyJuYW1lIjoiYm9sdF8wIiwicHJpbWl0aXZlcyI6W3siYXR0cmlidXRlcyI6eyJQT1NJVElPTiI6MjEsIk5PUk1BTCI6MjJ9LCJpbmRpY2VzIjoyMywibWF0ZXJpYWwiOjcsIm1vZGUiOjR9XX0seyJuYW1lIjoiYm9sdF8xIiwicHJpbWl0aXZlcyI6W3siYXR0cmlidXRlcyI6eyJQT1NJVElPTiI6MjQsIk5PUk1BTCI6MjV9LCJpbmRpY2VzIjoyNiwibWF0ZXJpYWwiOjgsIm1vZGUiOjR9XX0seyJuYW1lIjoiYm9sdF8yIiwicHJpbWl0aXZlcyI6W3siYXR0cmlidXRlcyI6eyJQT1NJVElPTiI6MjcsIk5PUk1BTCI6Mjh9LCJpbmRpY2VzIjoyOSwibWF0ZXJpYWwiOjksIm1vZGUiOjR9XX0seyJuYW1lIjoiYm9sdF8zIiwicHJpbWl0aXZlcyI6W3siYXR0cmlidXRlcyI6eyJQT1NJVElPTiI6MzAsIk5PUk1BTCI6MzF9LCJpbmRpY2VzIjozMiwibWF0ZXJpYWwiOjEwLCJtb2RlIjo0fV19LHsibmFtZSI6ImFybV9ib2x0XzAiLCJwcmltaXRpdmVzIjpbeyJhdHRyaWJ1dGVzIjp7IlBPU0lUSU9OIjozMywiTk9STUFMIjozNH0sImluZGljZXMiOjM1LCJtYXRlcmlhbCI6MTEsIm1vZGUiOjR9XX0seyJuYW1lIjoiYXJtX2JvbHRfMSIsInByaW1pdGl2ZXMiOlt7ImF0dHJpYnV0ZXMiOnsiUE9TSVRJT04iOjM2LCJOT1JNQUwiOjM3fSwiaW5kaWNlcyI6MzgsIm1hdGVyaWFsIjoxMiwibW9kZSI6NH1dfV0sImFjY2Vzc29ycyI6W3siYnVmZmVyVmlldyI6MCwiY29tcG9uZW50VHlwZSI6NTEyNiwiY291bnQiOjM2LCJ0eXBlIjoiVkVDMyIsIm1pbiI6Wy0xLjUsMCwtMS4wXSwibWF4IjpbMS41LDAuMTIsMS4wXX0seyJidWZmZXJWaWV3IjoxLCJjb21wb25lbnRUeXBlIjo1MTI2LCJjb3VudCI6MzYsInR5cGUiOiJWRUMzIn0seyJidWZmZXJWaWV3IjoyLCJjb21wb25lbnRUeXBlIjo1MTIzLCJjb3VudCI6MzYsInR5cGUiOiJTQ0FMQVIifSx7ImJ1ZmZlclZpZXciOjMsImNvbXBvbmVudFR5cGUiOjUxMjYsImNvdW50IjozNiwidHlwZSI6IlZFQzMiLCJtaW4iOlstMS40MTAwMDAwMDAwMDAwMDAxLDAuMTIsLTEuNl0sIm1heCI6Wy0xLjI5LDEuMzE5OTk5OTk5OTk5OTk5OCwwLjBdfSx7ImJ1ZmZlclZpZXciOjQsImNvbXBvbmVudFR5cGUiOjUxMjYsImNvdW50IjozNiwidHlwZSI6IlZFQzMifSx7ImJ1ZmZlclZpZXciOjUsImNvbXBvbmVudFR5cGUiOjUxMjMsImNvdW50IjozNiwidHlwZSI6IlNDQUxBUiJ9LHsiYnVmZmVyVmlldyI6NiwiY29tcG9uZW50VHlwZSI6NTEyNiwiY291bnQiOjM2LCJ0eXBlIjoiVkVDMyIsIm1pbiI6WzEuMjksMC4xMiwtMS42XSwibWF4IjpbMS40MTAwMDAwMDAwMDAwMDAxLDEuMzE5OTk5OTk5OTk5OTk5OCwwLjBdfSx7ImJ1ZmZlclZpZXciOjcsImNvbXBvbmVudFR5cGUiOjUxMjYsImNvdW50IjozNiwidHlwZSI6IlZFQzMifSx7ImJ1ZmZlclZpZXciOjgsImNvbXBvbmVudFR5cGUiOjUxMjMsImNvdW50IjozNiwidHlwZSI6IlNDQUxBUiJ9LHsiYnVmZmVyVmlldyI6OSwiY29tcG9uZW50VHlwZSI6NTEyNiwiY291bnQiOjM2LCJ0eXBlIjoiVkVDMyIsIm1pbiI6Wy0xLjUsMC4xMiwtMS4wXSwibWF4IjpbMS41LDEuMzE5OTk5OTk5OTk5OTk5OCwtMC44Nzk5OTk5OTk5OTk5OTk5XX0seyJidWZmZXJWaWV3IjoxMCwiY29tcG9uZW50VHlwZSI6NTEyNiwiY291bnQiOjM2LCJ0eXBlIjoiVkVDMyJ9LHsiYnVmZmVyVmlldyI6MTEsImNvbXBvbmVudFR5cGUiOjUxMjMsImNvdW50IjozNiwidHlwZSI6IlNDQUxBUiJ9LHsiYnVmZmVyVmlldyI6MTIsImNvbXBvbmVudFR5cGUiOjUxMjYsImNvdW50IjozNiwidHlwZSI6IlZFQzMiLCJtaW4iOlstMS4yLDEuMzIsLTEuMF0sIm1heCI6WzEuMiwxLjQ2LDAuMF19LHsiYnVmZmVyVmlldyI6MTMsImNvbXBvbmVudFR5cGUiOjUxMjYsImNvdW50IjozNiwidHlwZSI6IlZFQzMifSx7ImJ1ZmZlclZpZXciOjE0LCJjb21wb25lbnRUeXBlIjo1MTIzLCJjb3VudCI6MzYsInR5cGUiOiJTQ0FMQVIifSx7ImJ1ZmZlclZpZXciOjE1LCJjb21wb25lbnRUeXBlIjo1MTI2LCJjb3VudCI6MzYsInR5cGUiOiJWRUMzIiwibWluIjpbLTAuOTUwMDAwMDAwMDAwMDAwMSwwLjEyLC0wLjA1XSwibWF4IjpbLTAuODUsMS4zMTk5OTk5OTk5OTk5OTk4LDAuMDVdfSx7ImJ1ZmZlclZpZXciOjE2LCJjb21wb25lbnRUeXBlIjo1MTI2LCJjb3VudCI6MzYsInR5cGUiOiJWRUMzIn0seyJidWZmZXJWaWV3IjoxNywiY29tcG9uZW50VHlwZSI6NTEyMywiY291bnQiOjM2LCJ0eXBlIjoiU0NBTEFSIn0seyJidWZmZXJWaWV3IjoxOCwiY29tcG9uZW50VHlwZSI6NTEyNiwiY291bnQiOjM2LCJ0eXBlIjoiVkVDMyIsIm1pbiI6WzAuODUsMC4xMiwtMC4wNV0sIm1heCI6WzAuOTUwMDAwMDAwMDAwMDAwMSwxLjMxOTk5OTk5OTk5OTk5OTgsMC4wNV19LHsiYnVmZmVyVmlldyI6MTksImNvbXBvbmVudFR5cGUiOjUxMjYsImNvdW50IjozNiwidHlwZSI6IlZFQzMifSx7ImJ1ZmZlclZpZXciOjIwLCJjb21wb25lbnRUeXBlIjo1MTIzLCJjb3VudCI6MzYsInR5cGUiOiJTQ0FMQVIifSx7ImJ1ZmZlclZpZXciOjIxLCJjb21wb25lbnRUeXBlIjo1MTI2LCJjb3VudCI6MTQ0LCJ0eXBlIjoiVkVDMyIsIm1pbiI6Wy0xLjE5MDAwMDAwMDAwMDAwMDIsMCwwLjYxXSwibWF4IjpbLTEuMDEsMC4xMywwLjc4OTk5OTk5OTk5OTk5OTldfSx7ImJ1ZmZlclZpZXciOjIyLCJjb21wb25lbnRUeXBlIjo1MTI2LCJjb3VudCI6MTQ0LCJ0eXBlIjoiVkVDMyJ9LHsiYnVmZmVyVmlldyI6MjMsImNvbXBvbmVudFR5cGUiOjUxMjMsImNvdW50IjoxNDQsInR5cGUiOiJTQ0FMQVIifSx7ImJ1ZmZlclZpZXciOjI0LCJjb21wb25lbnRUeXBlIjo1MTI2LCJjb3VudCI6MTQ0LCJ0eXBlIjoiVkVDMyIsIm1pbiI6WzEuMDEsMCwwLjYxXSwibWF4IjpbMS4xOTAwMDAwMDAwMDAwMDAyLDAuMTMsMC43ODk5OTk5OTk5OTk5OTk5XX0seyJidWZmZXJWaWV3IjoyNSwiY29tcG9uZW50VHlwZSI6NTEyNiwiY291bnQiOjE0NCwidHlwZSI6IlZFQzMifSx7ImJ1ZmZlclZpZXciOjI2LCJjb21wb25lbnRUeXBlIjo1MTIzLCJjb3VudCI6MTQ0LCJ0eXBlIjoiU0NBTEFSIn0seyJidWZmZXJWaWV3IjoyNywiY29tcG9uZW50VHlwZSI6NTEyNiwiY291bnQiOjE0NCwidHlwZSI6IlZFQzMiLCJtaW4iOlstMS4xOTAwMDAwMDAwMDAwMDAyLDAsLTAuNzg5OTk5OTk5OTk5OTk5OV0sIm1heCI6Wy0xLjAxLDAuMTMsLTAuNjFdfSx7ImJ1ZmZlclZpZXciOjI4LCJjb21wb25lbnRUeXBlIjo1MTI2LCJjb3VudCI6MTQ0LCJ0eXBlIjoiVkVDMyJ9LHsiYnVmZmVyVmlldyI6MjksImNvbXBvbmVudFR5cGUiOjUxMjMsImNvdW50IjoxNDQsInR5cGUiOiJTQ0FMQVIifSx7ImJ1ZmZlclZpZXciOjMwLCJjb21wb25lbnRUeXBlIjo1MTI2LCJjb3VudCI6MTQ0LCJ0eXBlIjoiVkVDMyIsIm1pbiI6WzEuMDEsMCwtMC43ODk5OTk5OTk5OTk5OTk5XSwibWF4IjpbMS4xOTAwMDAwMDAwMDAwMDAyLDAuMTMsLTAuNjFdfSx7ImJ1ZmZlclZpZXciOjMxLCJjb21wb25lbnRUeXBlIjo1MTI2LCJjb3VudCI6MTQ0LCJ0eXBlIjoiVkVDMyJ9LHsiYnVmZmVyVmlldyI6MzIsImNvbXBvbmVudFR5cGUiOjUxMjMsImNvdW50IjoxNDQsInR5cGUiOiJTQ0FMQVIifSx7ImJ1ZmZlclZpZXciOjMzLCJjb21wb25lbnRUeXBlIjo1MTI2LCJjb3VudCI6MTQ0LCJ0eXBlIjoiVkVDMyIsIm1pbiI6Wy0wLjg3MDAwMDAwMDAwMDAwMDEsMS4zMiwwLjIyOTk5OTk5OTk5OTk5OTk4XSwibWF4IjpbLTAuNzMsMS40NywwLjM3XX0seyJidWZmZXJWaWV3IjozNCwiY29tcG9uZW50VHlwZSI6NTEyNiwiY291bnQiOjE0NCwidHlwZSI6IlZFQzMifSx7ImJ1ZmZlclZpZXciOjM1LCJjb21wb25lbnRUeXBlIjo1MTIzLCJjb3VudCI6MTQ0LCJ0eXBlIjoiU0NBTEFSIn0seyJidWZmZXJWaWV3IjozNiwiY29tcG9uZW50VHlwZSI6NTEyNiwiY291bnQiOjE0NCwidHlwZSI6IlZFQzMiLCJtaW4iOlswLjczLDEuMzIsMC4yMjk5OTk5OTk5OTk5OTk5OF0sIm1heCI6WzAuODcwMDAwMDAwMDAwMDAwMSwxLjQ3LDAuMzddfSx7ImJ1ZmZlclZpZXciOjM3LCJjb21wb25lbnRUeXBlIjo1MTI2LCJjb3VudCI6MTQ0LCJ0eXBlIjoiVkVDMyJ9LHsiYnVmZmVyVmlldyI6MzgsImNvbXBvbmVudFR5cGUiOjUxMjMsImNvdW50IjoxNDQsInR5cGUiOiJTQ0FMQVIifV0sImJ1ZmZlclZpZXdzIjpbeyJidWZmZXIiOjAsImJ5dGVPZmZzZXQiOjAsImJ5dGVMZW5ndGgiOjQzMiwidGFyZ2V0IjozNDk2Mn0seyJidWZmZXIiOjAsImJ5dGVPZmZzZXQiOjQzMiwiYnl0ZUxlbmd0aCI6NDMyLCJ0YXJnZXQiOjM0OTYyfSx7ImJ1ZmZlciI6MCwiYnl0ZU9mZnNldCI6ODY0LCJieXRlTGVuZ3RoIjo3MiwidGFyZ2V0IjozNDk2M30seyJidWZmZXIiOjAsImJ5dGVPZmZzZXQiOjkzNiwiYnl0ZUxlbmd0aCI6NDMyLCJ0YXJnZXQiOjM0OTYyfSx7ImJ1ZmZlciI6MCwiYnl0ZU9mZnNldCI6MTM2OCwiYnl0ZUxlbmd0aCI6NDMyLCJ0YXJnZXQiOjM0OTYyfSx7ImJ1ZmZlciI6MCwiYnl0ZU9mZnNldCI6MTgwMCwiYnl0ZUxlbmd0aCI6NzIsInRhcmdldCI6MzQ5NjN9LHsiYnVmZmVyIjowLCJieXRlT2Zmc2V0IjoxODcyLCJieXRlTGVuZ3RoIjo0MzIsInRhcmdldCI6MzQ5NjJ9LHsiYnVmZmVyIjowLCJieXRlT2Zmc2V0IjoyMzA0LCJieXRlTGVuZ3RoIjo0MzIsInRhcmdldCI6MzQ5NjJ9LHsiYnVmZmVyIjowLCJieXRlT2Zmc2V0IjoyNzM2LCJieXRlTGVuZ3RoIjo3MiwidGFyZ2V0IjozNDk2M30seyJidWZmZXIiOjAsImJ5dGVPZmZzZXQiOjI4MDgsImJ5dGVMZW5ndGgiOjQzMiwidGFyZ2V0IjozNDk2Mn0seyJidWZmZXIiOjAsImJ5dGVPZmZzZXQiOjMyNDAsImJ5dGVMZW5ndGgiOjQzMiwidGFyZ2V0IjozNDk2Mn0seyJidWZmZXIiOjAsImJ5dGVPZmZzZXQiOjM2NzIsImJ5dGVMZW5ndGgiOjcyLCJ0YXJnZXQiOjM0OTYzfSx7ImJ1ZmZlciI6MCwiYnl0ZU9mZnNldCI6Mzc0NCwiYnl0ZUxlbmd0aCI6NDMyLCJ0YXJnZXQiOjM0OTYyfSx7ImJ1ZmZlciI6MCwiYnl0ZU9mZnNldCI6NDE3NiwiYnl0ZUxlbmd0aCI6NDMyLCJ0YXJnZXQiOjM0OTYyfSx7ImJ1ZmZlciI6MCwiYnl0ZU9mZnNldCI6NDYwOCwiYnl0ZUxlbmd0aCI6NzIsInRhcmdldCI6MzQ5NjN9LHsiYnVmZmVyIjowLCJieXRlT2Zmc2V0Ijo0NjgwLCJieXRlTGVuZ3RoIjo0MzIsInRhcmdldCI6MzQ5NjJ9LHsiYnVmZmVyIjowLCJieXRlT2Zmc2V0Ijo1MTEyLCJieXRlTGVuZ3RoIjo0MzIsInRhcmdldCI6MzQ5NjJ9LHsiYnVmZmVyIjowLCJieXRlT2Zmc2V0Ijo1NTQ0LCJieXRlTGVuZ3RoIjo3MiwidGFyZ2V0IjozNDk2M30seyJidWZmZXIiOjAsImJ5dGVPZmZzZXQiOjU2MTYsImJ5dGVMZW5ndGgiOjQzMiwidGFyZ2V0IjozNDk2Mn0seyJidWZmZXIiOjAsImJ5dGVPZmZzZXQiOjYwNDgsImJ5dGVMZW5ndGgiOjQzMiwidGFyZ2V0IjozNDk2Mn0seyJidWZmZXIiOjAsImJ5dGVPZmZzZXQiOjY0ODAsImJ5dGVMZW5ndGgiOjcyLCJ0YXJnZXQiOjM0OTYzfSx7ImJ1ZmZlciI6MCwiYnl0ZU9mZnNldCI6NjU1MiwiYnl0ZUxlbmd0aCI6MTcyOCwidGFyZ2V0IjozNDk2Mn0seyJidWZmZXIiOjAsImJ5dGVPZmZzZXQiOjgyODAsImJ5dGVMZW5ndGgiOjE3MjgsInRhcmdldCI6MzQ5NjJ9LHsiYnVmZmVyIjowLCJieXRlT2Zmc2V0IjoxMDAwOCwiYnl0ZUxlbmd0aCI6Mjg4LCJ0YXJnZXQiOjM0OTYzfSx7ImJ1ZmZlciI6MCwiYnl0ZU9mZnNldCI6MTAyOTYsImJ5dGVMZW5ndGgiOjE3MjgsInRhcmdldCI6MzQ5NjJ9LHsiYnVmZmVyIjowLCJieXRlT2Zmc2V0IjoxMjAyNCwiYnl0ZUxlbmd0aCI6MTcyOCwidGFyZ2V0IjozNDk2Mn0seyJidWZmZXIiOjAsImJ5dGVPZmZzZXQiOjEzNzUyLCJieXRlTGVuZ3RoIjoyODgsInRhcmdldCI6MzQ5NjN9LHsiYnVmZmVyIjowLCJieXRlT2Zmc2V0IjoxNDA0MCwiYnl0ZUxlbmd0aCI6MTcyOCwidGFyZ2V0IjozNDk2Mn0seyJidWZmZXIiOjAsImJ5dGVPZmZzZXQiOjE1NzY4LCJieXRlTGVuZ3RoIjoxNzI4LCJ0YXJnZXQiOjM0OTYyfSx7ImJ1ZmZlciI6MCwiYnl0ZU9mZnNldCI6MTc0OTYsImJ5dGVMZW5ndGgiOjI4OCwidGFyZ2V0IjozNDk2M30seyJidWZmZXIiOjAsImJ5dGVPZmZzZXQiOjE3Nzg0LCJieXRlTGVuZ3RoIjoxNzI4LCJ0YXJnZXQiOjM0OTYyfSx7ImJ1ZmZlciI6MCwiYnl0ZU9mZnNldCI6MTk1MTIsImJ5dGVMZW5ndGgiOjE3MjgsInRhcmdldCI6MzQ5NjJ9LHsiYnVmZmVyIjowLCJieXRlT2Zmc2V0IjoyMTI0MCwiYnl0ZUxlbmd0aCI6Mjg4LCJ0YXJnZXQiOjM0OTYzfSx7ImJ1ZmZlciI6MCwiYnl0ZU9mZnNldCI6MjE1MjgsImJ5dGVMZW5ndGgiOjE3MjgsInRhcmdldCI6MzQ5NjJ9LHsiYnVmZmVyIjowLCJieXRlT2Zmc2V0IjoyMzI1NiwiYnl0ZUxlbmd0aCI6MTcyOCwidGFyZ2V0IjozNDk2Mn0seyJidWZmZXIiOjAsImJ5dGVPZmZzZXQiOjI0OTg0LCJieXRlTGVuZ3RoIjoyODgsInRhcmdldCI6MzQ5NjN9LHsiYnVmZmVyIjowLCJieXRlT2Zmc2V0IjoyNTI3MiwiYnl0ZUxlbmd0aCI6MTcyOCwidGFyZ2V0IjozNDk2Mn0seyJidWZmZXIiOjAsImJ5dGVPZmZzZXQiOjI3MDAwLCJieXRlTGVuZ3RoIjoxNzI4LCJ0YXJnZXQiOjM0OTYyfSx7ImJ1ZmZlciI6MCwiYnl0ZU9mZnNldCI6Mjg3MjgsImJ5dGVMZW5ndGgiOjI4OCwidGFyZ2V0IjozNDk2M31dLCJtYXRlcmlhbHMiOlt7Im5hbWUiOiJtYXRfYmFzZV9wbGF0ZSIsInBick1ldGFsbGljUm91Z2huZXNzIjp7ImJhc2VDb2xvckZhY3RvciI6WzAuNDUsMC41MiwwLjYsMS4wXSwibWV0YWxsaWNGYWN0b3IiOjAuNSwicm91Z2huZXNzRmFjdG9yIjowLjR9fSx7Im5hbWUiOiJtYXRfbGVmdF93YWxsIiwicGJyTWV0YWxsaWNSb3VnaG5lc3MiOnsiYmFzZUNvbG9yRmFjdG9yIjpbMC40LDAuNDcsMC41NSwxLjBdLCJtZXRhbGxpY0ZhY3RvciI6MC41LCJyb3VnaG5lc3NGYWN0b3IiOjAuNH19LHsibmFtZSI6Im1hdF9yaWdodF93YWxsIiwicGJyTWV0YWxsaWNSb3VnaG5lc3MiOnsiYmFzZUNvbG9yRmFjdG9yIjpbMC40LDAuNDcsMC41NSwxLjBdLCJtZXRhbGxpY0ZhY3RvciI6MC41LCJyb3VnaG5lc3NGYWN0b3IiOjAuNH19LHsibmFtZSI6Im1hdF9iYWNrX3BsYXRlIiwicGJyTWV0YWxsaWNSb3VnaG5lc3MiOnsiYmFzZUNvbG9yRmFjdG9yIjpbMC4zOCwwLjQ0LDAuNTIsMS4wXSwibWV0YWxsaWNGYWN0b3IiOjAuNSwicm91Z2huZXNzRmFjdG9yIjowLjR9fSx7Im5hbWUiOiJtYXRfYXJtX2JvZHkiLCJwYnJNZXRhbGxpY1JvdWdobmVzcyI6eyJiYXNlQ29sb3JGYWN0b3IiOlswLjU1LDAuMywwLjIsMS4wXSwibWV0YWxsaWNGYWN0b3IiOjAuNSwicm91Z2huZXNzRmFjdG9yIjowLjR9fSx7Im5hbWUiOiJtYXRfcmliX2xlZnQiLCJwYnJNZXRhbGxpY1JvdWdobmVzcyI6eyJiYXNlQ29sb3JGYWN0b3IiOlswLjUsMC4yOCwwLjE4LDEuMF0sIm1ldGFsbGljRmFjdG9yIjowLjUsInJvdWdobmVzc0ZhY3RvciI6MC40fX0seyJuYW1lIjoibWF0X3JpYl9yaWdodCIsInBick1ldGFsbGljUm91Z2huZXNzIjp7ImJhc2VDb2xvckZhY3RvciI6WzAuNSwwLjI4LDAuMTgsMS4wXSwibWV0YWxsaWNGYWN0b3IiOjAuNSwicm91Z2huZXNzRmFjdG9yIjowLjR9fSx7Im5hbWUiOiJtYXRfYm9sdF8wIiwicGJyTWV0YWxsaWNSb3VnaG5lc3MiOnsiYmFzZUNvbG9yRmFjdG9yIjpbMC4xNSwwLjE1LDAuMTcsMS4wXSwibWV0YWxsaWNGYWN0b3IiOjAuNSwicm91Z2huZXNzRmFjdG9yIjowLjR9fSx7Im5hbWUiOiJtYXRfYm9sdF8xIiwicGJyTWV0YWxsaWNSb3VnaG5lc3MiOnsiYmFzZUNvbG9yRmFjdG9yIjpbMC4xNSwwLjE1LDAuMTcsMS4wXSwibWV0YWxsaWNGYWN0b3IiOjAuNSwicm91Z2huZXNzRmFjdG9yIjowLjR9fSx7Im5hbWUiOiJtYXRfYm9sdF8yIiwicGJyTWV0YWxsaWNSb3VnaG5lc3MiOnsiYmFzZUNvbG9yRmFjdG9yIjpbMC4xNSwwLjE1LDAuMTcsMS4wXSwibWV0YWxsaWNGYWN0b3IiOjAuNSwicm91Z2huZXNzRmFjdG9yIjowLjR9fSx7Im5hbWUiOiJtYXRfYm9sdF8zIiwicGJyTWV0YWxsaWNSb3VnaG5lc3MiOnsiYmFzZUNvbG9yRmFjdG9yIjpbMC4xNSwwLjE1LDAuMTcsMS4wXSwibWV0YWxsaWNGYWN0b3IiOjAuNSwicm91Z2huZXNzRmFjdG9yIjowLjR9fSx7Im5hbWUiOiJtYXRfYXJtX2JvbHRfMCIsInBick1ldGFsbGljUm91Z2huZXNzIjp7ImJhc2VDb2xvckZhY3RvciI6WzAuMiwwLjIsMC4yMiwxLjBdLCJtZXRhbGxpY0ZhY3RvciI6MC41LCJyb3VnaG5lc3NGYWN0b3IiOjAuNH19LHsibmFtZSI6Im1hdF9hcm1fYm9sdF8xIiwicGJyTWV0YWxsaWNSb3VnaG5lc3MiOnsiYmFzZUNvbG9yRmFjdG9yIjpbMC4yLDAuMiwwLjIyLDEuMF0sIm1ldGFsbGljRmFjdG9yIjowLjUsInJvdWdobmVzc0ZhY3RvciI6MC40fX1dLCJidWZmZXJzIjpbeyJieXRlTGVuZ3RoIjoyOTAxNn1dfSAgWHEAAEJJTgAAAMC/AAAAAAAAgL8AAMA/AAAAAAAAgL8AAMA/AAAAAAAAgD8AAMC/AAAAAAAAgL8AAMA/AAAAAAAAgD8AAMC/AAAAAAAAgD8AAMC/j8L1PQAAgL8AAMA/j8L1PQAAgD8AAMA/j8L1PQAAgL8AAMC/j8L1PQAAgL8AAMC/j8L1PQAAgD8AAMA/j8L1PQAAgD8AAMC/AAAAAAAAgL8AAMC/j8L1PQAAgL8AAMA/j8L1PQAAgL8AAMC/AAAAAAAAgL8AAMA/j8L1PQAAgL8AAMA/AAAAAAAAgL8AAMA/AAAAAAAAgD8AAMA/j8L1PQAAgD8AAMC/j8L1PQAAgD8AAMA/AAAAAAAAgD8AAMC/j8L1PQAAgD8AAMC/AAAAAAAAgD8AAMC/AAAAAAAAgL8AAMC/AAAAAAAAgD8AAMC/j8L1PQAAgD8AAMC/AAAAAAAAgL8AAMC/j8L1PQAAgD8AAMC/j8L1PQAAgL8AAMA/AAAAAAAAgL8AAMA/j8L1PQAAgL8AAMA/j8L1PQAAgD8AAMA/AAAAAAAAgL8AAMA/j8L1PQAAgD8AAMA/AAAAAAAAgD8AAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAAEAAgADAAQABQAGAAcACAAJAAoACwAMAA0ADgAPABAAEQASABMAFAAVABYAFwAYABkAGgAbABwAHQAeAB8AIAAhACIAIwDherS/j8L1Pc3MzL+4HqW/j8L1Pc3MzL+4HqW/j8L1PQAAAADherS/j8L1Pc3MzL+4HqW/j8L1PQAAAADherS/j8L1PQAAAADherS/w/WoP83MzL+4HqW/w/WoPwAAAAC4HqW/w/WoP83MzL/herS/w/WoP83MzL/herS/w/WoPwAAAAC4HqW/w/WoPwAAAADherS/j8L1Pc3MzL/herS/w/WoP83MzL+4HqW/w/WoP83MzL/herS/j8L1Pc3MzL+4HqW/w/WoP83MzL+4HqW/j8L1Pc3MzL+4HqW/j8L1PQAAAAC4HqW/w/WoPwAAAADherS/w/WoPwAAAAC4HqW/j8L1PQAAAADherS/w/WoPwAAAADherS/j8L1PQAAAADherS/j8L1Pc3MzL/herS/j8L1PQAAAADherS/w/WoPwAAAADherS/j8L1Pc3MzL/herS/w/WoPwAAAADherS/w/WoP83MzL+4HqW/j8L1Pc3MzL+4HqW/w/WoP83MzL+4HqW/w/WoPwAAAAC4HqW/j8L1Pc3MzL+4HqW/w/WoPwAAAAC4HqW/j8L1PQAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAAEAAgADAAQABQAGAAcACAAJAAoACwAMAA0ADgAPABAAEQASABMAFAAVABYAFwAYABkAGgAbABwAHQAeAB8AIAAhACIAIwC4HqU/j8L1Pc3MzL/herQ/j8L1Pc3MzL/herQ/j8L1PQAAAAC4HqU/j8L1Pc3MzL/herQ/j8L1PQAAAAC4HqU/j8L1PQAAAAC4HqU/w/WoP83MzL/herQ/w/WoPwAAAADherQ/w/WoP83MzL+4HqU/w/WoP83MzL+4HqU/w/WoPwAAAADherQ/w/WoPwAAAAC4HqU/j8L1Pc3MzL+4HqU/w/WoP83MzL/herQ/w/WoP83MzL+4HqU/j8L1Pc3MzL/herQ/w/WoP83MzL/herQ/j8L1Pc3MzL/herQ/j8L1PQAAAADherQ/w/WoPwAAAAC4HqU/w/WoPwAAAADherQ/j8L1PQAAAAC4HqU/w/WoPwAAAAC4HqU/j8L1PQAAAAC4HqU/j8L1Pc3MzL+4HqU/j8L1PQAAAAC4HqU/w/WoPwAAAAC4HqU/j8L1Pc3MzL+4HqU/w/WoPwAAAAC4HqU/w/WoP83MzL/herQ/j8L1Pc3MzL/herQ/w/WoP83MzL/herQ/w/WoPwAAAADherQ/j8L1Pc3MzL/herQ/w/WoPwAAAADherQ/j8L1PQAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAAEAAgADAAQABQAGAAcACAAJAAoACwAMAA0ADgAPABAAEQASABMAFAAVABYAFwAYABkAGgAbABwAHQAeAB8AIAAhACIAIwAAAMC/j8L1PQAAgL8AAMA/j8L1PQAAgL8AAMA/j8L1Pa5HYb8AAMC/j8L1PQAAgL8AAMA/j8L1Pa5HYb8AAMC/j8L1Pa5HYb8AAMC/w/WoPwAAgL8AAMA/w/WoP65HYb8AAMA/w/WoPwAAgL8AAMC/w/WoPwAAgL8AAMC/w/WoP65HYb8AAMA/w/WoP65HYb8AAMC/j8L1PQAAgL8AAMC/w/WoPwAAgL8AAMA/w/WoPwAAgL8AAMC/j8L1PQAAgL8AAMA/w/WoPwAAgL8AAMA/j8L1PQAAgL8AAMA/j8L1Pa5HYb8AAMA/w/WoP65HYb8AAMC/w/WoP65HYb8AAMA/j8L1Pa5HYb8AAMC/w/WoP65HYb8AAMC/j8L1Pa5HYb8AAMC/j8L1PQAAgL8AAMC/j8L1Pa5HYb8AAMC/w/WoP65HYb8AAMC/j8L1PQAAgL8AAMC/w/WoP65HYb8AAMC/w/WoPwAAgL8AAMA/j8L1PQAAgL8AAMA/w/WoPwAAgL8AAMA/w/WoP65HYb8AAMA/j8L1PQAAgL8AAMA/w/WoP65HYb8AAMA/j8L1Pa5HYb8AAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAAEAAgADAAQABQAGAAcACAAJAAoACwAMAA0ADgAPABAAEQASABMAFAAVABYAFwAYABkAGgAbABwAHQAeAB8AIAAhACIAIwCamZm/w/WoPwAAgL+amZk/w/WoPwAAgL+amZk/w/WoPwAAAACamZm/w/WoPwAAgL+amZk/w/WoPwAAAACamZm/w/WoPwAAAACamZm/SOG6PwAAgL+amZk/SOG6PwAAAACamZk/SOG6PwAAgL+amZm/SOG6PwAAgL+amZm/SOG6PwAAAACamZk/SOG6PwAAAACamZm/w/WoPwAAgL+amZm/SOG6PwAAgL+amZk/SOG6PwAAgL+amZm/w/WoPwAAgL+amZk/SOG6PwAAgL+amZk/w/WoPwAAgL+amZk/w/WoPwAAAACamZk/SOG6PwAAAACamZm/SOG6PwAAAACamZk/w/WoPwAAAACamZm/SOG6PwAAAACamZm/w/WoPwAAAACamZm/w/WoPwAAgL+amZm/w/WoPwAAAACamZm/SOG6PwAAAACamZm/w/WoPwAAgL+amZm/SOG6PwAAAACamZm/SOG6PwAAgL+amZk/w/WoPwAAgL+amZk/SOG6PwAAgL+amZk/SOG6PwAAAACamZk/w/WoPwAAgL+amZk/SOG6PwAAAACamZk/w/WoPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAAEAAgADAAQABQAGAAcACAAJAAoACwAMAA0ADgAPABAAEQASABMAFAAVABYAFwAYABkAGgAbABwAHQAeAB8AIAAhACIAIwAzM3O/j8L1Pc3MTL2amVm/j8L1Pc3MTL2amVm/j8L1Pc3MTD0zM3O/j8L1Pc3MTL2amVm/j8L1Pc3MTD0zM3O/j8L1Pc3MTD0zM3O/w/WoP83MTL2amVm/w/WoP83MTD2amVm/w/WoP83MTL0zM3O/w/WoP83MTL0zM3O/w/WoP83MTD2amVm/w/WoP83MTD0zM3O/j8L1Pc3MTL0zM3O/w/WoP83MTL2amVm/w/WoP83MTL0zM3O/j8L1Pc3MTL2amVm/w/WoP83MTL2amVm/j8L1Pc3MTL2amVm/j8L1Pc3MTD2amVm/w/WoP83MTD0zM3O/w/WoP83MTD2amVm/j8L1Pc3MTD0zM3O/w/WoP83MTD0zM3O/j8L1Pc3MTD0zM3O/j8L1Pc3MTL0zM3O/j8L1Pc3MTD0zM3O/w/WoP83MTD0zM3O/j8L1Pc3MTL0zM3O/w/WoP83MTD0zM3O/w/WoP83MTL2amVm/j8L1Pc3MTL2amVm/w/WoP83MTL2amVm/w/WoP83MTD2amVm/j8L1Pc3MTL2amVm/w/WoP83MTD2amVm/j8L1Pc3MTD0AAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAAEAAgADAAQABQAGAAcACAAJAAoACwAMAA0ADgAPABAAEQASABMAFAAVABYAFwAYABkAGgAbABwAHQAeAB8AIAAhACIAIwCamVk/j8L1Pc3MTL0zM3M/j8L1Pc3MTL0zM3M/j8L1Pc3MTD2amVk/j8L1Pc3MTL0zM3M/j8L1Pc3MTD2amVk/j8L1Pc3MTD2amVk/w/WoP83MTL0zM3M/w/WoP83MTD0zM3M/w/WoP83MTL2amVk/w/WoP83MTL2amVk/w/WoP83MTD0zM3M/w/WoP83MTD2amVk/j8L1Pc3MTL2amVk/w/WoP83MTL0zM3M/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AAAAAOpGdz/ug4S+AAAAAOpGdz/ug4S+AAAAAOpGdz/ug4S+AAAAAOpGdz/ug4S+AAAAAOpGdz/ug4S+AAAAAOpGdz/ug4S+AAAAAOpGdz/zBDW/AAAAAPMENT/zBDW/AAAAAPMENT/zBDW/AAAAAPMENT/zBDW/AAAAAPMENT/zBDW/AAAAAPMENT/zBDW/AAAAAPMENT/qRne/AAAAAO6DhD7qRne/AAAAAO6DhD7qRne/AAAAAO6DhD7qRne/AAAAAO6DhD7qRne/AAAAAO6DhD7qRne/AAAAAO6DhD7qRne/AAAAAO6DhL7qRne/AAAAAO6DhL7qRne/AAAAAO6DhL7qRne/AAAAAO6DhL7qRne/AAAAAO6DhL7qRne/AAAAAO6DhL7zBDW/AAAAAPMENb/zBDW/AAAAAPMENb/zBDW/AAAAAPMENb/zBDW/AAAAAPMENb/zBDW/AAAAAPMENb/zBDW/AAAAAPMENb/ug4S+AAAAAOpGd7/ug4S+AAAAAOpGd7/ug4S+AAAAAOpGd7/ug4S+AAAAAOpGd7/ug4S+AAAAAOpGd7/ug4S+AAAAAOpGd7/ug4Q+AAAAAOpGd7/ug4Q+AAAAAOpGd7/ug4Q+AAAAAOpGd7/ug4Q+AAAAAOpGd7/ug4Q+AAAAAOpGd7/ug4Q+AAAAAOpGd7/zBDU/AAAAAPMENb/zBDU/AAAAAPMENb/zBDU/AAAAAPMENb/zBDU/AAAAAPMENb/zBDU/AAAAAPMENb/zBDU/AAAAAPMENb/qRnc/AAAAAO6DhL7qRnc/AAAAAO6DhL7qRnc/AAAAAO6DhL7qRnc/AAAAAO6DhL7qRnc/AAAAAO6DhL7qRnc/AAAAAO6DhL4AAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAA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AAAAAO6DhD7zBDU/AAAAAPMENT/zBDU/AAAAAPMENT/zBDU/AAAAAPMENT/zBDU/AAAAAPMENT/zBDU/AAAAAPMENT/zBDU/AAAAAPMENT/ug4Q+AAAAAOpGdz/ug4Q+AAAAAOpGdz/ug4Q+AAAAAOpGdz/ug4Q+AAAAAOpGdz/ug4Q+AAAAAOpGdz/ug4Q+AAAAAOpGdz/ug4S+AAAAAOpGdz/ug4S+AAAAAOpGdz/ug4S+AAAAAOpGdz/ug4S+AAAAAOpGdz/ug4S+AAAAAOpGdz/ug4S+AAAAAOpGdz/zBDW/AAAAAPMENT/zBDW/AAAAAPMENT/zBDW/AAAAAPMENT/zBDW/AAAAAPMENT/zBDW/AAAAAPMENT/zBDW/AAAAAPMENT/qRne/AAAAAO6DhD7qRne/AAAAAO6DhD7qRne/AAAAAO6DhD7qRne/AAAAAO6DhD7qRne/AAAAAO6DhD7qRne/AAAAAO6DhD7qRne/AAAAAO6DhL7qRne/AAAAAO6DhL7qRne/AAAAAO6DhL7qRne/AAAAAO6DhL7qRne/AAAAAO6DhL7qRne/AAAAAO6DhL7zBDW/AAAAAPMENb/zBDW/AAAAAPMENb/zBDW/AAAAAPMENb/zBDW/AAAAAPMENb/zBDW/AAAAAPMENb/zBDW/AAAAAPMENb/ug4S+AAAAAOpGd7/ug4S+AAAAAOpGd7/ug4S+AAAAAOpGd7/ug4S+AAAAAOpGd7/ug4S+AAAAAOpGd7/ug4S+AAAAAOpGd7/ug4Q+AAAAAOpGd7/ug4Q+AAAAAOpGd7/ug4Q+AAAAAOpGd7/ug4Q+AAAAAOpGd7/ug4Q+AAAAAOpGd7/ug4Q+AAAAAOpGd7/zBDU/AAAAAPMENb/zBDU/AAAAAPMENb/zBDU/AAAAAPMENb/zBDU/AAAAAPMENb/zBDU/AAAAAPMENb/zBDU/AAAAAPMENb/qRnc/AAAAAO6DhL7qRnc/AAAAAO6DhL7qRnc/AAAAAO6DhL7qRnc/AAAAAO6DhL7qRnc/AAAAAO6DhL7qRnc/AAAAAO6DhL4AAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAA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AAAAAO6DhL7qRnc/AAAAAO6DhL7qRnc/AAAAAO6DhL7qRnc/AAAAAO6DhL4AAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAA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AAAAAOpGd7/ug4Q+AAAAAOpGd7/ug4Q+AAAAAOpGd7/ug4Q+AAAAAOpGd7/zBDU/AAAAAPMENb/zBDU/AAAAAPMENb/zBDU/AAAAAPMENb/zBDU/AAAAAPMENb/zBDU/AAAAAPMENb/zBDU/AAAAAPMENb/qRnc/AAAAAO6DhL7qRnc/AAAAAO6DhL7qRnc/AAAAAO6DhL7qRnc/AAAAAO6DhL7qRnc/AAAAAO6DhL7qRnc/AAAAAO6DhL4AAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAA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AAAAAPMENb/zBDW/AAAAAPMENb/zBDW/AAAAAPMENb/zBDW/AAAAAPMENb/ug4S+AAAAAOpGd7/ug4S+AAAAAOpGd7/ug4S+AAAAAOpGd7/ug4S+AAAAAOpGd7/ug4S+AAAAAOpGd7/ug4S+AAAAAOpGd7/ug4Q+AAAAAOpGd7/ug4Q+AAAAAOpGd7/ug4Q+AAAAAOpGd7/ug4Q+AAAAAOpGd7/ug4Q+AAAAAOpGd7/ug4Q+AAAAAOpGd7/zBDU/AAAAAPMENb/zBDU/AAAAAPMENb/zBDU/AAAAAPMENb/zBDU/AAAAAPMENb/zBDU/AAAAAPMENb/zBDU/AAAAAPMENb/qRnc/AAAAAO6DhL7qRnc/AAAAAO6DhL7qRnc/AAAAAO6DhL7qRnc/AAAAAO6DhL7qRnc/AAAAAO6DhL7qRnc/AAAAAO6DhL4AAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAEAAgADAAQABQAGAAcACAAJAAoACwAMAA0ADgAPABAAEQASABMAFAAVABYAFwAYABkAGgAbABwAHQAeAB8AIAAhACIAIwAkACUAJgAnACgAKQAqACsALAAtAC4ALwAwADEAMgAzADQANQA2ADcAOAA5ADoAOwA8AD0APgA/AEAAQQBCAEMARABFAEYARwBIAEkASgBLAEwATQBOAE8AUABRAFIAUwBUAFUAVgBXAFgAWQBaAFsAXABdAF4AXwBgAGEAYgBjAGQAZQBmAGcAaABpAGoAawBsAG0AbgBvAHAAcQByAHMAdAB1AHYAdwB4AHkAegB7AHwAfQB+AH8AgACBAIIAgwCEAIUAhgCHAIgAiQCKAIsAjACNAI4AjwBSuF4/w/WoP5qZmT61UVw/w/WoPx+Fqz61UVw/9ii8Px+Fqz5SuF4/w/WoP5qZmT61UVw/9ii8Px+Fqz5SuF4/9ii8P5qZmT61UVw/w/WoPx+Fqz6PwlU/w/WoP2ujuD6PwlU/9ii8P2ujuD61UVw/w/WoPx+Fqz6PwlU/9ii8P2ujuD61UVw/9ii8Px+Fqz6PwlU/w/WoP2ujuD7NzEw/w/WoP6RwvT7NzEw/9ii8P6RwvT6PwlU/w/WoP2ujuD7NzEw/9ii8P6RwvT6PwlU/9ii8P2ujuD7NzEw/w/WoP6RwvT4K10M/w/WoP2ujuD4K10M/9ii8P2ujuD7NzEw/w/WoP6RwvT4K10M/9ii8P2ujuD7NzEw/9ii8P6RwvT4K10M/w/WoP2ujuD7kRz0/w/WoPx+Fqz7kRz0/9ii8Px+Fqz4K10M/w/WoP2ujuD7kRz0/9ii8Px+Fqz4K10M/9ii8P2ujuD7kRz0/w/WoPx+Fqz5I4To/w/WoP5qZmT5I4To/9ii8P5qZmT7kRz0/w/WoPx+Fqz5I4To/9ii8P5qZmT7kRz0/9ii8Px+Fqz5I4To/w/WoP5qZmT7kRz0/w/WoPxSuhz7kRz0/9ii8PxSuhz5I4To/w/WoP5qZmT7kRz0/9ii8PxSuhz5I4To/9ii8P5qZmT7kRz0/w/WoPxSuhz4K10M/w/WoP5EfdT4K10M/9ii8P5EfdT7kRz0/w/WoPxSuhz4K10M/9ii8P5EfdT7kRz0/9ii8PxSuhz4K10M/w/WoP5EfdT7NzEw/w/WoPx+Faz7NzEw/9ii8Px+Faz4K10M/w/WoP5EfdT7NzEw/9ii8Px+Faz4K10M/9ii8P5EfdT7NzEw/w/WoPx+Faz6PwlU/w/WoP5EfdT6PwlU/9ii8P5EfdT7NzEw/w/WoPx+Faz6PwlU/9ii8P5EfdT7NzEw/9ii8Px+Faz6PwlU/w/WoP5EfdT61UVw/w/WoPxSuhz61UVw/9ii8PxSuhz6PwlU/w/WoP5EfdT61UVw/9ii8PxSuhz6PwlU/9ii8P5EfdT61UVw/w/WoPxSuhz5SuF4/w/WoP5qZmT5SuF4/9ii8P5qZmT61UVw/w/WoPxSuhz5SuF4/9ii8P5qZmT61UVw/9ii8PxSuhz7NzEw/9ii8P5qZmT5SuF4/9ii8P5qZmT61UVw/9ii8Px+Fqz7NzEw/w/WoP5qZmT61UVw/w/WoPx+Fqz5SuF4/w/WoP5qZmT7NzEw/9ii8P5qZmT61UVw/9ii8Px+Fqz6PwlU/9ii8P2ujuD7NzEw/w/WoP5qZmT6PwlU/w/WoP2ujuD61UVw/w/WoPx+Fqz7NzEw/9ii8P5qZmT6PwlU/9ii8P2ujuD7NzEw/9ii8P6RwvT7NzEw/w/WoP5qZmT7NzEw/w/WoP6RwvT6PwlU/w/WoP2ujuD7NzEw/9ii8P5qZmT7NzEw/9ii8P6RwvT4K10M/9ii8P2ujuD7NzEw/w/WoP5qZmT4K10M/w/WoP2ujuD7NzEw/w/WoP6RwvT7NzEw/9ii8P5qZmT4K10M/9ii8P2ujuD7kRz0/9ii8Px+Fqz7NzEw/w/WoP5qZmT7kRz0/w/WoPx+Fqz4K10M/w/WoP2ujuD7NzEw/9ii8P5qZmT7kRz0/9ii8Px+Fqz5I4To/9ii8P5qZmT7NzEw/w/WoP5qZmT5I4To/w/WoP5qZmT7kRz0/w/WoPx+Fqz7NzEw/9ii8P5qZmT5I4To/9ii8P5qZmT7kRz0/9ii8PxSuhz7NzEw/w/WoP5qZmT7kRz0/w/WoPxSuhz5I4To/w/WoP5qZmT7NzEw/9ii8P5qZmT7kRz0/9ii8PxSuhz4K10M/9ii8P5EfdT7NzEw/w/WoP5qZmT4K10M/w/WoP5EfdT7kRz0/w/WoPxSuhz7NzEw/9ii8P5qZmT4K10M/9ii8P5EfdT7NzEw/9ii8Px+Faz7NzEw/w/WoP5qZmT7NzEw/w/WoPx+Faz4K10M/w/WoP5EfdT7NzEw/9ii8P5qZmT7NzEw/9ii8Px+Faz6PwlU/9ii8P5EfdT7NzEw/w/WoP5qZmT6PwlU/w/WoP5EfdT7NzEw/w/WoPx+Faz7NzEw/9ii8P5qZmT6PwlU/9ii8P5EfdT61UVw/9ii8PxSuhz7NzEw/w/WoP5qZmT61UVw/w/WoPxSuhz6PwlU/w/WoP5EfdT7NzEw/9ii8P5qZmT61UVw/9ii8PxSuhz5SuF4/9ii8P5qZmT7NzEw/w/WoP5qZmT5SuF4/w/WoP5qZmT61UVw/w/WoPxSuhz7qRnc/AAAAAO6DhD7qRnc/AAAAAO6DhD7qRnc/AAAAAO6DhD7qRnc/AAAAAO6DhD7qRnc/AAAAAO6DhD7qRnc/AAAAAO6DhD7zBDU/AAAAAPMENT/zBDU/AAAAAPMENT/zBDU/AAAAAPMENT/zBDU/AAAAAPMENT/zBDU/AAAAAPMENT/zBDU/AAAAAPMENT/ug4Q+AAAAAOpGdz/ug4Q+AAAAAOpGdz/ug4Q+AAAAAOpGdz/ug4Q+AAAAAOpGdz/ug4Q+AAAAAOpGdz/ug4Q+AAAAAOpGdz/ug4S+AAAAAOpGdz/ug4S+AAAAAOpGdz/ug4S+AAAAAOpGdz/ug4S+AAAAAOpGdz/ug4S+AAAAAOpGdz/ug4S+AAAAAOpGdz/zBDW/AAAAAPMENT/zBDW/AAAAAPMENT/zBDW/AAAAAPMENT/zBDW/AAAAAPMENT/zBDW/AAAAAPMENT/zBDW/AAAAAPMENT/qRne/AAAAAO6DhD7qRne/AAAAAO6DhD7qRne/AAAAAO6DhD7qRne/AAAAAO6DhD7qRne/AAAAAO6DhD7qRne/AAAAAO6DhD7qRne/AAAAAO6DhL7qRne/AAAAAO6DhL7qRne/AAAAAO6DhL7qRne/AAAAAO6DhL7qRne/AAAAAO6DhL7qRne/AAAAAO6DhL7zBDW/AAAAAPMENb/zBDW/AAAAAPMENb/zBDW/AAAAAPMENb/zBDW/AAAAAPMENb/zBDW/AAAAAPMENb/zBDW/AAAAAPMENb/ug4S+AAAAAOpGd7/ug4S+AAAAAOpGd7/ug4S+AAAAAOpGd7/ug4S+AAAAAOpGd7/ug4S+AAAAAOpGd7/ug4S+AAAAAOpGd7/ug4Q+AAAAAOpGd7/ug4Q+AAAAAOpGd7/ug4Q+AAAAAOpGd7/ug4Q+AAAAAOpGd7/ug4Q+AAAAAOpGd7/ug4Q+AAAAAOpGd7/zBDU/AAAAAPMENb/zBDU/AAAAAPMENb/zBDU/AAAAAPMENb/zBDU/AAAAAPMENb/zBDU/AAAAAPMENb/zBDU/AAAAAPMENb/qRnc/AAAAAO6DhL7qRnc/AAAAAO6DhL7qRnc/AAAAAO6DhL7qRnc/AAAAAO6DhL7qRnc/AAAAAO6DhL7qRnc/AAAAAO6DhL4AAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAEAAgADAAQABQAGAAcACAAJAAoACwAMAA0ADgAPABAAEQASABMAFAAVABYAFwAYABkAGgAbABwAHQAeAB8AIAAhACIAIwAkACUAJgAnACgAKQAqACsALAAtAC4ALwAwADEAMgAzADQANQA2ADcAOAA5ADoAOwA8AD0APgA/AEAAQQBCAEMARABFAEYARwBIAEkASgBLAEwATQBOAE8AUABRAFIAUwBUAFUAVgBXAFgAWQBaAFsAXABdAF4AXwBgAGEAYgBjAGQAZQBmAGcAaABpAGoAawBsAG0AbgBvAHAAcQByAHMAdAB1AHYAdwB4AHkAegB7AHwAfQB+AH8AgACBAIIAgwCEAIUAhgCHAIgAiQCKAIsAjACNAI4AjwA=";
+  function doLoad() {
+    var bytes = Uint8Array.from(atob(SAMPLE_B64), function(c){ return c.charCodeAt(0); });
+    window.__showLoading(true);
+    window.__gltfLoader.parse(bytes.buffer, '', function(gltf) {
+      window.__addModel('sample_hierarchy.glb', gltf.scene, {name:'sample_hierarchy.glb', size:bytes.length});
+      setTimeout(function() {
+        window.__loadSampleAnnotations([
+          {id:1, type:'fault',  title:'バックプレート亀裂', value:'',        desc:'溶接部に亀裂を確認。要補修。', date:'2026-02-20', url:'https://example.com/report1', pinPos:{x:0,   y:0.7,  z:-0.94}, visible:true},
+          {id:2, type:'stress', title:'アーム最大応力',     value:'312 MPa', desc:'許容値350MPa対比89%。',        date:'2026-02-21', url:'', pinPos:{x:0,   y:1.32, z:0.5},  visible:true},
+          {id:3, type:'note',   title:'ボルト締付確認',     value:'25 N·m',  desc:'右前ボルト増し締め要確認。',   date:'', url:'', pinPos:{x:1.1, y:0.1,  z:0.7},  visible:true},
+          {id:4, type:'fault',  title:'サイドウォール変形', value:'',        desc:'微小変形を検出。',              date:'2026-02-22', url:'', pinPos:{x:-1.35,y:0.7, z:0},    visible:true}
+        ]);
+      }, 600);
+    }, function(err) {
+      window.__showLoading(false);
+      window.__setStatus('エラー: '+(err&&err.message?err.message:err));
+    });
+  }
+  window.addEventListener('three-ready', doLoad, {once:true});
+})();
+</script>
+
+</body>
+</html>
